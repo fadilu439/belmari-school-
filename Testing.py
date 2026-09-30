@@ -10,6 +10,24 @@ app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "change-this-secret-key")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 DATABASE = os.path.join(os.path.dirname(__file__), "school.db")
+CLASS_NAMES = (
+    "ABU AMR",
+    "ABU JA'AFAR",
+    "ALIYUL KISA'I",
+    "KALAF",
+    "HISHAM",
+    "ASEEM",
+    "IBN KASEER",
+    "WARSH",
+    "SHU'UBA",
+    "QALUN(A)",
+    "QALUN(B)",
+    "IBN AMIR",
+    "NAFI'U",
+    "ABUL HARIS",
+    "KALLAD",
+    "HAFS",
+)
 
 
 class DBAdapter:
@@ -20,7 +38,7 @@ class DBAdapter:
         if isinstance(self.connection, sqlite3.Connection):
             return self.connection.execute(query, params)
         import psycopg2.extras
-        cursor = self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cursor = self.connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
         cursor.execute(query.replace("?", "%s"), params)
         return cursor
 
@@ -418,6 +436,7 @@ BASE_HTML = """
 {% if g.user %}<div class="layout"><aside><div class="brand-wrap"><div class="brand-mark">Q</div><div class="brand">MADRASATU BELMARI<br>QUR'ANIC SCHOOL</div></div><div class="welcome">Welcome, {{ g.user['full_name'] }}</div><nav>
   <a href="{{ url_for('dashboard') }}" class="{{ 'active' if page == 'dashboard' else '' }}">Dashboard</a>
     <a href="{{ url_for('students') }}" class="{{ 'active' if page == 'students' else '' }}">Students</a>
+        <a href="{{ url_for('classes') }}" class="{{ 'active' if page == 'classes' else '' }}">Classes</a>
     <a href="{{ url_for('announcements') }}" class="{{ 'active' if page == 'announcements' else '' }}">Announcements</a>
     {% if g.user['role'] == 'admin' %}<a href="{{ url_for('users') }}" class="{{ 'active' if page == 'users' else '' }}">Staff &amp; Admin</a>{% endif %}
     <a href="{{ url_for('logout') }}">Log out</a>
@@ -485,6 +504,7 @@ def dashboard():
     return page("""
     <div class="topbar"><div><h1>Dashboard</h1><p class="muted">School performance overview</p></div><a class="button" href="{{ url_for('student_new') }}">+ Add student</a></div>
     <div class="grid">{% for label, value in [('Active students', stats.students), ('Staff members', stats.staff), ('Announcements', stats.announcements), ('New students (30 days)', stats.new_students)] %}<div class="card stat"><span class="muted">{{ label }}</span><strong>{{ value }}</strong></div>{% endfor %}</div>
+    <a class="card" href="{{ url_for('classes') }}" style="display:block; margin-bottom:24px;"><h2>Classes and student lists</h2><p class="muted">Browse students grouped by class.</p><span class="button">View classes</span></a>
     <div class="card"><h2>Latest announcements</h2>{% for item in latest %}<div class="announcement"><h3>{{ item['title'] }}</h3><p>{{ item['body'] }}</p><small class="muted">{{ item['created_at'] }}</small></div>{% else %}<p class="muted">No announcements yet.</p>{% endfor %}</div>
     """, "Dashboard", "dashboard", stats=stats, latest=latest)
 
@@ -510,8 +530,43 @@ def students():
             <div class="topbar"><div><h1>Student Records</h1><p class="muted">Search by admission number, student name, parent, or phone number.</p></div><a class="button" href="{{ url_for('student_new') }}">+ Add student</a></div>
             <form class="toolbar"><input class="search" name="q" value="{{ query }}" placeholder="Search students..." autofocus><button>Search</button>{% if query %}<a class="button light" href="{{ url_for('students') }}">Clear search</a>{% endif %}</form>
             <div class="card"><table><thead><tr>
-            <th>Admission No.</th><th>Student</th><th>Class</th><th>Date of birth</th><th>Parent</th><th>Phone</th><th>Status</th><th>Actions</th></tr></thead><tbody>{% for student in rows %}<tr><td>{{ student['admission_no'] }}</td><td><b>{{ student['full_name'] }}</b><br>{{ student['gender'] or '' }}</td><td>{{ student['class_name'] or '-' }}</td><td>{{ student['date_of_birth'] or '-' }}</td><td>{{ student['parent_name'] }}</td><td>{{ student['parent_phone'] }}</td><td>{{ student['status'] }}</td><td><div class="actions"><a class="button light" href="{{ url_for('student_edit', student_id=student['id']) }}">Edit</a><form method="post" action="{{ url_for('student_delete', student_id=student['id']) }}"><button class="danger" onclick="return confirm('Delete this student?')">Delete</button></form></div></td></tr>{% else %}<tr><td colspan="8">No students found.</td></tr>{% endfor %}</tbody></table></div>
+            <th>Admission No.</th><th>Student</th><th>Class</th><th>Date of birth</th><th>Parent</th><th>Phone</th><th>Status</th><th>Registered on</th><th>Actions</th></tr></thead><tbody>{% for student in rows %}<tr><td>{{ student['admission_no'] }}</td><td><b>{{ student['full_name'] }}</b><br>{{ student['gender'] or '' }}</td><td>{{ student['class_name'] or '-' }}</td><td>{{ student['date_of_birth'] or '-' }}</td><td>{{ student['parent_name'] }}</td><td>{{ student['parent_phone'] }}</td><td>{{ student['status'] }}</td><td>{{ student['created_at'] }}</td><td><div class="actions"><a class="button light" href="{{ url_for('student_edit', student_id=student['id']) }}">Edit</a><form method="post" action="{{ url_for('student_delete', student_id=student['id']) }}"><button class="danger" onclick="return confirm('Delete this student?')">Delete</button></form></div></td></tr>{% else %}<tr><td colspan="9">No students found.</td></tr>{% endfor %}</tbody></table></div>
         """, "Students", "students", query=query, rows=rows)
+
+
+@app.route("/classes")
+@login_required
+def classes():
+    rows = get_db().execute(
+        "SELECT admission_no, full_name, class_name FROM students ORDER BY class_name, full_name"
+    ).fetchall()
+    grouped_students = {class_name: [] for class_name in CLASS_NAMES}
+    class_names_by_key = {class_name.casefold(): class_name for class_name in CLASS_NAMES}
+    other_classes = {}
+    unassigned_students = []
+    for student in rows:
+        class_name = (student["class_name"] or "").strip()
+        if not class_name:
+            unassigned_students.append(student)
+            continue
+        official_name = class_names_by_key.get(class_name.casefold())
+        if official_name:
+            grouped_students[official_name].append(student)
+        else:
+            other_classes.setdefault(class_name, []).append(student)
+    class_groups = [(name, grouped_students[name]) for name in CLASS_NAMES]
+    class_groups.extend(sorted(other_classes.items(), key=lambda group: group[0].casefold()))
+    if unassigned_students:
+        class_groups.append(("No class assigned", unassigned_students))
+    return page("""
+        <div class="topbar"><div><h1>Classes</h1><p class="muted">Students are grouped by their assigned class.</p></div><a class="button light" href="{{ url_for('students') }}">All students</a></div>
+        {% for class_name, class_students in class_groups %}
+        <section class="card" style="margin-bottom:18px;">
+          <div class="topbar"><div><h2>{{ class_name }}</h2><p class="muted">{{ class_students|length }} student(s)</p></div></div>
+          {% if class_students %}<ul>{% for student in class_students %}<li><strong>{{ student['full_name'] }}</strong> <span class="muted">({{ student['admission_no'] }})</span></li>{% endfor %}</ul>{% else %}<p class="muted">No students assigned to this class yet.</p>{% endif %}
+        </section>
+        {% else %}<div class="card">No students have been registered yet.</div>{% endfor %}
+        """, "Classes", "classes", class_groups=class_groups)
 
 
 STUDENT_FORM = """
@@ -521,7 +576,7 @@ STUDENT_FORM = """
     <div class="field"><label>Full student name *</label><input name="full_name" value="{{ student['full_name'] if student else '' }}" required></div>
     <div class="field"><label>Gender</label><select name="gender"><option value="">Select</option><option value="Male" {{ 'selected' if student and student['gender']=='Male' else '' }}>Male</option><option value="Female" {{ 'selected' if student and student['gender']=='Female' else '' }}>Female</option></select></div>
     <div class="field"><label>Date of birth</label><input type="date" name="date_of_birth" value="{{ student['date_of_birth'] if student else '' }}"></div>
-    <div class="field"><label>Class / level</label><input name="class_name" value="{{ student['class_name'] if student else '' }}" placeholder="Example: Hifz 1"></div>
+    <div class="field"><label>Class *</label><select name="class_name" required><option value="">Select class</option>{% if student and student['class_name'] and student['class_name'] not in class_names %}<option value="{{ student['class_name'] }}" selected>{{ student['class_name'] }} (existing)</option>{% endif %}{% for class_name in class_names %}<option value="{{ class_name }}" {{ 'selected' if student and student['class_name'] == class_name else '' }}>{{ class_name }}</option>{% endfor %}</select></div>
     <div class="field"><label>Parent or guardian name *</label><input name="parent_name" value="{{ student['parent_name'] if student else '' }}" required></div>
     <div class="field"><label>Parent or guardian phone *</label><input name="parent_phone" value="{{ student['parent_phone'] if student else '' }}" required></div>
     <div class="field"><label>Status</label><select name="status"><option value="active" {{ 'selected' if not student or student['status']=='active' else '' }}>Active</option><option value="inactive" {{ 'selected' if student and student['status']=='inactive' else '' }}>Inactive</option></select></div>
@@ -545,7 +600,7 @@ def student_new():
             return redirect(url_for("students"))
         except sqlite3.IntegrityError:
             flash("That admission number is already in use.", "error")
-    return page(STUDENT_FORM, "New student", "students", heading="Add new student", student=None)
+    return page(STUDENT_FORM, "New student", "students", heading="Add new student", student=None, class_names=CLASS_NAMES)
 
 
 @app.route("/students/<int:student_id>/edit", methods=("GET", "POST"))
@@ -563,7 +618,7 @@ def student_edit(student_id):
             return redirect(url_for("students"))
         except sqlite3.IntegrityError:
             flash("That admission number is already in use.", "error")
-    return page(STUDENT_FORM, "Edit student", "students", heading="Edit student record", student=student)
+    return page(STUDENT_FORM, "Edit student", "students", heading="Edit student record", student=student, class_names=CLASS_NAMES)
 
 
 @app.post("/students/<int:student_id>/delete")

@@ -1,4 +1,5 @@
 import os
+import json
 import sqlite3
 from functools import wraps
 
@@ -28,6 +29,17 @@ CLASS_NAMES = (
     "KALLAD",
     "HAFS",
 )
+SUBJECTS = (
+    "HADITH",
+    "FIQIHU",
+    "TAUHID",
+    "SIRAH",
+    "AZKAR",
+    "HURUF",
+    "ARABIYYA",
+    "ULUMUL-QUR'AN",
+)
+WEEKDAYS = ("Asabar", "Lahadi", "Litinin", "Talata", "Laraba")
 
 
 class DBAdapter:
@@ -153,6 +165,29 @@ def init_db():
             );
             """
         )
+
+    profile_columns = {
+        "phone": "TEXT",
+        "school_position": "TEXT",
+        "homeroom_class": "TEXT",
+        "teaching_classes": "TEXT NOT NULL DEFAULT '[]'",
+        "subjects": "TEXT NOT NULL DEFAULT '[]'",
+        "weekdays": "TEXT NOT NULL DEFAULT '[]'",
+    }
+    if use_postgres():
+        for column_name, definition in profile_columns.items():
+            db.execute(
+                f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {column_name} {definition}"
+            )
+    else:
+        existing_columns = {
+            row["name"] for row in db.execute("PRAGMA table_info(users)").fetchall()
+        }
+        for column_name, definition in profile_columns.items():
+            if column_name not in existing_columns:
+                db.execute(
+                    f"ALTER TABLE users ADD COLUMN {column_name} {definition}"
+                )
 
     if use_postgres():
         admin = db.execute("SELECT id FROM users WHERE username = %s", ("admin",)).fetchone()
@@ -371,6 +406,10 @@ BASE_HTML = """
     th,td { padding: 12px 10px; border-bottom:1px solid var(--border); text-align:left; vertical-align:top; }
     th { background:#f5f1ea; color:#2f3f42; }
     .form-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:15px; }
+    .choice-panel { border:1px solid var(--border); border-radius:9px; padding:14px; }
+    .choice-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:8px 14px; }
+    .choice-option { display:flex!important; align-items:center; gap:8px; margin:0; font-weight:500!important; }
+    .choice-option input[type="checkbox"] { width:18px; height:18px; margin:0; padding:0; }
     .field label { display:block; font-weight:700; margin-bottom:6px; }
     .full { grid-column:1/-1; }
     .flash { padding:12px 15px; border-radius:8px; background: var(--success-bg); margin-bottom:15px; color: #184d3d; }
@@ -437,6 +476,7 @@ BASE_HTML = """
   <a href="{{ url_for('dashboard') }}" class="{{ 'active' if page == 'dashboard' else '' }}">Dashboard</a>
     <a href="{{ url_for('students') }}" class="{{ 'active' if page == 'students' else '' }}">Students</a>
         <a href="{{ url_for('classes') }}" class="{{ 'active' if page == 'classes' else '' }}">Classes</a>
+    <a href="{{ url_for('staff_directory') }}" class="{{ 'active' if page == 'staff' else '' }}">Staff directory</a>
     <a href="{{ url_for('announcements') }}" class="{{ 'active' if page == 'announcements' else '' }}">Announcements</a>
     {% if g.user['role'] == 'admin' %}<a href="{{ url_for('users') }}" class="{{ 'active' if page == 'users' else '' }}">Staff &amp; Admin</a>{% endif %}
     <a href="{{ url_for('logout') }}">Log out</a>
@@ -505,6 +545,7 @@ def dashboard():
     <div class="topbar"><div><h1>Dashboard</h1><p class="muted">School performance overview</p></div><a class="button" href="{{ url_for('student_new') }}">+ Add student</a></div>
     <div class="grid">{% for label, value in [('Active students', stats.students), ('Staff members', stats.staff), ('Announcements', stats.announcements), ('New students (30 days)', stats.new_students)] %}<div class="card stat"><span class="muted">{{ label }}</span><strong>{{ value }}</strong></div>{% endfor %}</div>
     <a class="card" href="{{ url_for('classes') }}" style="display:block; margin-bottom:24px;"><h2>Classes and student lists</h2><p class="muted">Browse students grouped by class.</p><span class="button">View classes</span></a>
+    <a class="card" href="{{ url_for('staff_directory') }}" style="display:block; margin-bottom:24px;"><h2>Staff directory</h2><p class="muted">View staff contact, role, classes, subjects, and days.</p><span class="button">View staff</span></a>
     <div class="card"><h2>Latest announcements</h2>{% for item in latest %}<div class="announcement"><h3>{{ item['title'] }}</h3><p>{{ item['body'] }}</p><small class="muted">{{ item['created_at'] }}</small></div>{% else %}<p class="muted">No announcements yet.</p>{% endfor %}</div>
     """, "Dashboard", "dashboard", stats=stats, latest=latest)
 
@@ -655,18 +696,111 @@ def announcements():
 def users():
     db = get_db()
     if request.method == "POST":
-        try:
-            db.execute("INSERT INTO users (full_name, username, password_hash, role) VALUES (?,?,?,?)", (request.form["full_name"].strip(), request.form["username"].strip(), generate_password_hash(request.form["password"]), request.form["role"]))
-            db.commit()
-            flash("The new staff member was added.")
-        except sqlite3.IntegrityError:
-            flash("That username is already in use.", "error")
+        full_name = request.form.get("full_name", "").strip()
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+        phone = request.form.get("phone", "").strip()
+        school_position = request.form.get("school_position", "").strip()
+        homeroom_class = request.form.get("homeroom_class", "").strip()
+        if homeroom_class not in CLASS_NAMES:
+            homeroom_class = ""
+        teaching_classes = [
+            value for value in request.form.getlist("teaching_classes")
+            if value in CLASS_NAMES
+        ]
+        subjects = [
+            value for value in request.form.getlist("subjects")
+            if value in SUBJECTS
+        ]
+        weekdays = [
+            value for value in request.form.getlist("weekdays")
+            if value in WEEKDAYS
+        ]
+        role = request.form.get("role", "staff")
+        if role not in ("staff", "admin"):
+            role = "staff"
+
+        if not all((full_name, username, password, phone, school_position)):
+            flash("Enter the staff member's required details.", "error")
+        else:
+            try:
+                db.execute(
+                    """INSERT INTO users
+                       (full_name, username, password_hash, role, phone,
+                        school_position, homeroom_class, teaching_classes, subjects, weekdays)
+                       VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                    (
+                        full_name,
+                        username,
+                        generate_password_hash(password),
+                        role,
+                        phone,
+                        school_position,
+                        homeroom_class or None,
+                        json.dumps(teaching_classes),
+                        json.dumps(subjects),
+                        json.dumps(weekdays),
+                    ),
+                )
+                db.commit()
+                flash("The new staff member was added.")
+            except Exception as error:
+                db.rollback()
+                if isinstance(error, sqlite3.IntegrityError) or error.__class__.__name__ == "UniqueViolation":
+                    flash("That username is already in use.", "error")
+                else:
+                    raise
     rows = db.execute("SELECT * FROM users ORDER BY id").fetchall()
     return page("""
-            <div class="topbar"><div><h1>Staff &amp; Admin</h1><p class="muted">Only administrators can add new staff accounts.</p></div></div>
-            <div class="card"><h2>Add new staff member</h2><form method="post"><div class="form-grid"><div class="field"><label>Full name</label><input name="full_name" required></div><div class="field"><label>Username</label><input name="username" required></div><div class="field"><label>Password</label><input type="password" name="password" minlength="6" required></div><div class="field"><label>Role</label><select name="role"><option value="staff">Staff</option><option value="admin">Admin</option></select></div></div><br><button>Save staff member</button></form></div><br>
-            <div class="card"><table><thead><tr><th>Full name</th><th>Username</th><th>Role</th><th>Created</th></tr></thead><tbody>{% for user in rows %}<tr><td>{{ user['full_name'] }}</td><td>{{ user['username'] }}</td><td>{{ user['role'] }}</td><td>{{ user['created_at'] }}</td></tr>{% endfor %}</tbody></table></div>
-        """, "Staff", "users")
+        <div class="topbar"><div><h1>Staff &amp; Admin</h1><p class="muted">Create staff sign-in accounts and maintain their school profiles.</p></div><a class="button light" href="{{ url_for('staff_directory') }}">Staff directory</a></div>
+        <div class="card"><h2>Register staff member</h2><form method="post"><div class="form-grid">
+          <div class="field"><label>Full name *</label><input name="full_name" required></div>
+          <div class="field"><label>Phone number *</label><input name="phone" type="tel" required></div>
+          <div class="field"><label>Position at school *</label><input name="school_position" placeholder="For example: Qur'an teacher" required></div>
+          <div class="field"><label>Class assigned to the teacher (optional)</label><select name="homeroom_class"><option value="">No assigned class</option>{% for class_name in class_names %}<option value="{{ class_name }}">{{ class_name }}</option>{% endfor %}</select></div>
+          <div class="field"><label>Username *</label><input name="username" required></div>
+          <div class="field"><label>Temporary password *</label><input type="password" name="password" minlength="6" required></div>
+          <div class="field"><label>App access permission</label><select name="role"><option value="staff">Staff</option><option value="admin">Admin</option></select></div>
+          <fieldset class="choice-panel full"><legend>Classes taught</legend><div class="choice-grid">{% for class_name in class_names %}<label class="choice-option"><input type="checkbox" name="teaching_classes" value="{{ class_name }}">{{ class_name }}</label>{% endfor %}</div></fieldset>
+          <fieldset class="choice-panel full"><legend>Subjects taught</legend><div class="choice-grid">{% for subject in subjects %}<label class="choice-option"><input type="checkbox" name="subjects" value="{{ subject }}">{{ subject }}</label>{% endfor %}</div></fieldset>
+          <fieldset class="choice-panel full"><legend>Teaching days (Asabar to Laraba)</legend><div class="choice-grid">{% for weekday in weekdays %}<label class="choice-option"><input type="checkbox" name="weekdays" value="{{ weekday }}">{{ weekday }}</label>{% endfor %}</div></fieldset>
+        </div><br><button>Save staff member</button></form></div><br>
+        <div class="card"><h2>Accounts</h2><table><thead><tr><th>Full name</th><th>Phone</th><th>School position</th><th>Access</th><th>Created</th></tr></thead><tbody>{% for user in rows %}<tr><td>{{ user['full_name'] }}</td><td>{{ user['phone'] or '-' }}</td><td>{{ user['school_position'] or '-' }}</td><td>{{ user['role'] }}</td><td>{{ user['created_at'] }}</td></tr>{% endfor %}</tbody></table></div>
+        """, "Staff & Admin", "users", rows=rows, class_names=CLASS_NAMES, subjects=SUBJECTS, weekdays=WEEKDAYS)
+
+
+@app.route("/staff")
+@login_required
+def staff_directory():
+    rows = get_db().execute(
+        """SELECT full_name, phone, school_position, homeroom_class,
+                  teaching_classes, subjects, weekdays
+           FROM users WHERE role = ? ORDER BY full_name""",
+        ("staff",),
+    ).fetchall()
+    staff_members = []
+    for row in rows:
+        staff_members.append({
+            "full_name": row["full_name"],
+            "phone": row["phone"],
+            "school_position": row["school_position"],
+            "homeroom_class": row["homeroom_class"],
+            "teaching_classes": json.loads(row["teaching_classes"] or "[]"),
+            "subjects": json.loads(row["subjects"] or "[]"),
+            "weekdays": json.loads(row["weekdays"] or "[]"),
+        })
+    return page("""
+        <div class="topbar"><div><h1>Staff directory</h1><p class="muted">Staff contact and teaching information. Visible to signed-in school accounts.</p></div></div>
+        <div class="grid">{% for member in staff_members %}<article class="card">
+          <h2>{{ member['full_name'] }}</h2>
+          <p><strong>Phone:</strong> {% if member['phone'] %}<a href="tel:{{ member['phone'] }}">{{ member['phone'] }}</a>{% else %}-{% endif %}</p>
+          <p><strong>Position:</strong> {{ member['school_position'] or '-' }}</p>
+          <p><strong>Assigned class:</strong> {{ member['homeroom_class'] or 'None' }}</p>
+          <p><strong>Classes taught:</strong> {{ member['teaching_classes']|join(', ') or 'None listed' }}</p>
+          <p><strong>Subjects:</strong> {{ member['subjects']|join(', ') or 'None listed' }}</p>
+          <p><strong>Days:</strong> {{ member['weekdays']|join(', ') or 'None listed' }}</p>
+        </article>{% else %}<div class="card">No staff profiles have been registered yet.</div>{% endfor %}</div>
+        """, "Staff directory", "staff", staff_members=staff_members)
 
 
 if __name__ == "__main__":

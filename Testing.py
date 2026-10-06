@@ -247,228 +247,134 @@ BASE_HTML = """
     <title>{{ title }} | MADRASATU BELMARI QUR'ANIC SCHOOL</title>
   <style>
     :root {
-      --bg: #edf5ff;
+      --bg: #f8f9ff;
       --paper: #ffffff;
-      --ink: #16324f;
-      --muted: #59738d;
-      --primary: #0d3b82;
-      --primary-dark: #092a5b;
-      --primary-soft: #eaf3ff;
-      --accent: #4fa3ff;
-      --accent-soft: #dfeeff;
-      --border: #dfeaf7;
-      --sidebar: #0d2f5c;
-      --sidebar-soft: #163f7a;
-      --success-bg: #eaf8f5;
-      --error-bg: #fdeceb;
-      --shadow: 0 10px 28px rgba(13, 59, 130, 0.10);
+      --ink: #0f172a;
+      --muted: #64748b;
+      --primary: #0b2a5b;
+      --primary-dark: #081f43;
+      --primary-soft: #e8eefb;
+      --accent: #3b82f6;
+      --accent-soft: #dbe3f5;
+      --border: #dbe3f5;
+      --sidebar: #0a2142;
+      --sidebar-soft: #12346a;
+      --success-bg: #ecfdf5;
+      --error-bg: #fef2f2;
+      --shadow: 0 20px 50px rgba(11,42,91,.12);
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      background: linear-gradient(180deg, #f4f9ff 0%, #edf3ff 100%);
+      background: var(--bg);
       color: var(--ink);
-      font-family: Arial, Helvetica, sans-serif;
+      font-family: 'Inter', Arial, sans-serif;
       line-height: 1.5;
     }
     a { color: inherit; text-decoration: none; }
     .layout { min-height:100vh; display:flex; }
     aside {
-      width: 260px;
+      width: 270px;
       background: linear-gradient(180deg, var(--sidebar) 0%, var(--sidebar-soft) 100%);
       color: #edf5ff;
-      padding: 26px 18px;
+      padding: 24px 16px;
       flex-shrink: 0;
-      box-shadow: inset -1px 0 0 rgba(255,255,255,0.08);
     }
     .brand-wrap {
       display:flex;
       align-items:center;
       gap:12px;
-      padding: 8px 4px 16px;
+      padding: 10px 4px 18px;
       margin-bottom: 18px;
-      border-bottom: 1px solid rgba(255,255,255,0.12);
+      border-bottom: 1px solid rgba(255,255,255,0.1);
     }
     .brand-mark {
-      width: 52px;
-      height: 52px;
-      border-radius: 16px;
-      background: linear-gradient(135deg, #dfeeff 0%, #9fc8ff 100%);
-      color: var(--primary-dark);
+      width: 46px;
+      height: 46px;
+      border-radius: 12px;
+      background: white;
+      color: var(--primary);
       display:grid;
       place-items:center;
       font-weight: 900;
-      font-size: 24px;
-      box-shadow: inset 0 0 0 3px rgba(255,255,255,0.55);
+      font-size: 20px;
     }
     .brand {
-      font-size: 15px;
+      font-size: 12.5px;
       font-weight: 800;
-      line-height: 1.25;
-      color: #f4f8ff;
-      letter-spacing: 0.3px;
+      line-height: 1.3;
+      color: white;
     }
     .welcome {
-      color: #dceaff;
-      font-size: 14px;
+      color: #9fb6d8;
+      font-size: 13px;
       margin: 0 0 16px;
     }
     nav a {
       display:block;
-      padding: 12px 14px;
+      padding: 11px 14px;
       border-radius: 10px;
-      margin: 6px 0;
-      color: #d9e9ff;
-      transition: all 0.2s ease;
+      margin: 4px 0;
+      color: #a9bddf;
       font-weight: 600;
+      font-size:14px;
+      transition: .2s;
     }
     nav a:hover, nav a.active {
-      background: rgba(255,255,255,0.09);
-      color: #ffffff;
-      transform: translateX(2px);
+      background: rgba(255,255,255,0.10);
+      color: white;
     }
-    main {
-      flex: 1;
-      padding: 30px;
-      max-width: 1500px;
-    }
-    .topbar {
-      display:flex;
-      justify-content:space-between;
-      gap:16px;
-      align-items:center;
-      margin-bottom:22px;
-    }
+    main { flex: 1; padding: 30px; max-width: 1500px; }
+    .topbar { display:flex; justify-content:space-between; gap:16px; align-items:center; margin-bottom:24px; }
     h1,h2,h3 { margin-top:0; }
-    h1 { font-size: 30px; margin-bottom: 6px; }
-    h2 { font-size: 22px; }
+    h1 { font-size: 28px; font-weight:800; color:var(--primary); margin-bottom: 6px; letter-spacing:-.5px }
+    h2 { font-size: 18px; font-weight:700; }
     .muted { color: var(--muted); }
-    .grid {
-      display:grid;
-      grid-template-columns:repeat(4,1fr);
-      gap:16px;
-      margin-bottom:24px;
-    }
-    .card {
-      background: var(--paper);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 20px;
-      box-shadow: var(--shadow);
-    }
-    .stat { border-top: 4px solid var(--accent); }
-    .stat strong {
-      display:block;
-      font-size: 30px;
-      margin-top:10px;
-      color: var(--primary);
-    }
-    .toolbar {
-      display:flex;
-      flex-wrap:wrap;
-      gap:10px;
-      margin-bottom:18px;
-    }
+    .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:18px; margin-bottom:24px; }
+    .card { background: var(--paper); border: 1px solid var(--border); border-radius: 16px; padding: 24px; box-shadow: var(--shadow); }
+    .stat { border-top: 4px solid var(--primary); }
+    .stat strong { display:block; font-size: 32px; margin-top:8px; color: var(--primary); font-weight:800; }
+    .toolbar { display:flex; flex-wrap:wrap; gap:12px; margin-bottom:20px; }
     input,select,textarea {
-      width:100%;
-      padding: 12px 13px;
-      border: 1px solid #d9d0c4;
-      border-radius: 9px;
-      background:#fff;
-      font:inherit;
-      color: var(--ink);
-      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      width:100%; padding: 13px 14px; border: 1.5px solid #d0d9ec; border-radius: 10px; background:#fff; font:inherit; color: var(--ink);
     }
-    input:focus, select:focus, textarea:focus {
-      outline: none;
-      border-color: var(--primary);
-      box-shadow: 0 0 0 4px rgba(11,107,85,0.08);
-    }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 4px rgba(11,42,91,0.08); }
     textarea { min-height: 120px; resize: vertical; }
     .search { flex:1; min-width:220px; }
-    button,.button {
-      border:0;
-      border-radius: 9px;
-      padding: 12px 18px;
-      background: var(--primary);
-      color:white;
-      cursor:pointer;
-      font:inherit;
-      display:inline-block;
-      font-weight: 700;
-      transition: opacity 0.2s ease, transform 0.2s ease;
-    }
-    button:hover,.button:hover { opacity:0.96; transform: translateY(-1px); }
-    .button.gold { background: #aa7b1d; }
-    .button.light { background:#edf4ef; color: var(--ink); }
-    .button.danger { background: #b5473a; }
-    table { width:100%; border-collapse: collapse; background: white; }
-    th,td { padding: 12px 10px; border-bottom:1px solid var(--border); text-align:left; vertical-align:top; }
-    th { background:#f5f1ea; color:#2f3f42; }
-    .form-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:15px; }
-    .choice-panel { border:1px solid var(--border); border-radius:9px; padding:14px; }
-    .choice-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:8px 14px; }
-    .choice-option { display:flex!important; align-items:center; gap:8px; margin:0; font-weight:500!important; }
-    .choice-option input[type="checkbox"] { width:18px; height:18px; margin:0; padding:0; }
-    .field label { display:block; font-weight:700; margin-bottom:6px; }
+    button,.button { border:0; border-radius: 10px; padding: 12px 20px; background: var(--primary); color:white; cursor:pointer; font:inherit; display:inline-block; font-weight: 700; }
+    button:hover,.button:hover { background:#081f43; }
+    .button.gold { background: #0b2a5b; }
+    .button.light { background:#e8eefb; color: var(--ink); }
+    .button.danger { background: #dc2626; }
+    table { width:100%; border-collapse: collapse; background: white; border-radius:14px; overflow:hidden; box-shadow:var(--shadow); }
+    th,td { padding: 14px 18px; border-bottom:1px solid var(--border); text-align:left; }
+    th { background:#f1f5fb; color:#2F3A4C; font-weight:700; font-size:13px; text-transform:uppercase; letter-spacing:.5px }
+    .form-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:16px; }
+    .field label { display:block; font-weight:700; font-size:13px; color:var(--primary); margin-bottom:6px; }
     .full { grid-column:1/-1; }
-    .flash { padding:12px 15px; border-radius:8px; background: var(--success-bg); margin-bottom:15px; color: #184d3d; }
-    .flash.error { background: var(--error-bg); color: #7c2a2a; }
+    .flash { padding:12px 15px; border-radius:10px; background: var(--success-bg); margin-bottom:15px; }
+    .flash.error { background: var(--error-bg); }
    .login-page {
     min-height:100vh;
     display:grid;
     place-items:center;
     padding:20px;
-    background: radial-gradient(1000px 500px at 20% 0%, #1a4fb0 0%, #0b2a5b 70%);
+    background: radial-gradient(1000px 500px at 20% 0%, #1a4fb0 0%, #0b2a5b 70%, #081d40 100%);
   }
     .login-box {
-      width:min(480px, 100%);
-      background: rgba(255,255,255,0.98);
-      padding: 34px 30px;
+      width:min(420px, 100%);
+      background: white;
+      padding: 36px 32px;
       border-radius: 20px;
-      box-shadow: 0 20px 50px rgba(11, 28, 62, 0.22);
-      border: 1px solid rgba(255,255,255,0.25);
+      box-shadow: 0 24px 60px rgba(0,0,0,.25);
     }
     .login-box h1 { color: var(--primary); }
-    .login-logo {
-      display:flex;
-      align-items:center;
-      gap:14px;
-      margin-bottom: 18px;
-      padding-bottom: 16px;
-      border-bottom: 1px solid var(--border);
-    }
-    .login-mark {
-      width: 60px;
-      height: 60px;
-      border-radius: 18px;
-      background: linear-gradient(135deg, #dfeeff 0%, #89b9ff 100%);
-      color: var(--primary-dark);
-      display:grid;
-      place-items:center;
-      font-weight: 900;
-      font-size: 28px;
-      box-shadow: inset 0 0 0 3px rgba(255,255,255,0.55);
-    }
-    .announcement {
-      border-left: 4px solid var(--accent);
-      margin-bottom: 14px;
-      background: #fffaf2;
-    }
-    .actions { display:flex; gap:6px; flex-wrap:wrap; }
-    .school-name {
-      font-size: 28px;
-      font-weight: 800;
-      color: var(--primary-dark);
-      margin-bottom: 8px;
-    }
-    .brand-subtitle {
-      color: var(--muted);
-      font-size: 14px;
-      margin-bottom: 18px;
-    }
-    @media(max-width:900px) { aside { width:210px; } .grid { grid-template-columns:repeat(2,1fr); } main { padding:20px; } }
-    @media(max-width:620px) { .layout { display:block; } aside { width:100%; padding:12px; } nav { display:flex; overflow:auto; gap:4px; } nav a { white-space:nowrap; } .grid,.form-grid { grid-template-columns:1fr; } main { padding:15px; } .topbar { align-items:flex-start; flex-direction:column; } table { min-width:850px; } }
+    .login-logo { display:flex; align-items:center; gap:12px; margin-bottom: 18px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+    .login-mark { width: 46px; height: 46px; border-radius: 12px; background: var(--primary); color: white; display:grid; place-items:center; font-weight: 900; font-size: 20px; }
+    .school-name { font-size: 22px; font-weight: 800; color: var(--primary); margin-bottom: 4px; }
+    .brand-subtitle { color: var(--muted); font-size: 14px; margin-bottom: 18px; }
+    @media(max-width:900px) { aside { width:220px; } .grid { grid-template-columns:repeat(2,1fr); } main { padding:20px; } }
+    @media(max-width:620px) { .layout { display:block; } aside { width:100%; } .grid,.form-grid { grid-template-columns:1fr; } main { padding:15px; } .topbar { align-items:flex-start; flex-direction:column; } table { min-width:850px; } }
   </style>
 </head>
 <body>

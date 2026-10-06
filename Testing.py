@@ -517,8 +517,7 @@ def login():
       <div class="field"><label>Password</label><input type="password" name="password" required></div><br>
       <button>Log in</button>
     </form>
-    <p class="muted" style="margin-top:18px;">Default login: <b>admin</b> / <b>admin123</b>. Please change it after signing in.</p>
-    """, "Log in", "login")
+    <p class="muted" style="margin-top:18px;">Contact administrator for access.</p>
 
 
 @app.route("/logout")

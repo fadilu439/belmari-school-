@@ -414,13 +414,13 @@ BASE_HTML = """
     .full { grid-column:1/-1; }
     .flash { padding:12px 15px; border-radius:8px; background: var(--success-bg); margin-bottom:15px; color: #184d3d; }
     .flash.error { background: var(--error-bg); color: #7c2a2a; }
-    .login-page {
-      min-height:100vh;
-      display:grid;
-      place-items:center;
-      padding:20px;
-      background: linear-gradient(135deg, #0d2f5c 0%, #164b92 100%);
-    }
+   .login-page {
+    min-height:100vh;
+    display:grid;
+    place-items:center;
+    padding:20px;
+    background: radial-gradient(1000px 500px at 20% 0%, #1a4fb0 0%, #0b2a5b 70%);
+  }
     .login-box {
       width:min(480px, 100%);
       background: rgba(255,255,255,0.98);

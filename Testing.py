@@ -545,26 +545,24 @@ def users():
                 db.rollback()
                 if isinstance(error, sqlite3.IntegrityError) or error.__class__.__name__ == "UniqueViolation":
                     flash("That username is already in use.", "error")
-                else:
-                    raise
-    rows = db.execute("SELECT * FROM users ORDER BY id").fetchall()
+                    else:
+        rows = db.execute("SELECT * FROM users ORDER BY id").fetchall()
     return page("""
-        <div class="topbar"><div><h1>Staff &amp; Admin</h1><p class="muted">Create staff sign-in accounts and maintain their school profiles.</p></div><a class="button light" href="{{ url_for('staff_directory') }}">Staff directory</a></div>
-        <div class="card"><h2>Register staff member</h2><form method="post"><div class="form-grid">
-          <div class="field"><label>Full name *</label><input name="full_name" required></div>
-          <div class="field"><label>Phone number *</label><input name="phone" type="tel" required></div>
-          <div class="field"><label>Position at school *</label><input name="school_position" placeholder="For example: Qur'an teacher" required></div>
-          <div class="field"><label>Class assigned to the teacher (optional)</label><select name="homeroom_class"><option value="">No assigned class</option>{% for class_name in class_names %}<option value="{{ class_name }}">{{ class_name }}</option>{% endfor %}</select></div>
-          <div class="field"><label>Username *</label><input name="username" required></div>
-          <div class="field"><label>Temporary password *</label><input type="password" name="password" minlength="6" required></div>
-          <div class="field"><label>App access permission</label><select name="role"><option value="staff">Staff</option><option value="admin">Admin</option></select></div>
-          <fieldset class="choice-panel full"><legend>Classes taught</legend><div class="choice-grid">{% for class_name in class_names %}<label class="choice-option"><input type="checkbox" name="teaching_classes" value="{{ class_name }}">{{ class_name }}</label>{% endfor %}</div></fieldset>
-          <fieldset class="choice-panel full"><legend>Subjects taught</legend><div class="choice-grid">{% for subject in subjects %}<label class="choice-option"><input type="checkbox" name="subjects" value="{{ subject }}">{{ subject }}</label>{% endfor %}</div></fieldset>
-          <fieldset class="choice-panel full"><legend>Teaching days (Asabar to Laraba)</legend><div class="choice-grid">{% for weekday in weekdays %}<label class="choice-option"><input type="checkbox" name="weekdays" value="{{ weekday }}">{{ weekday }}</label>{% endfor %}</div></fieldset>
-        </div><br><button>Save staff member</button></form></div><br>
-        <div class="card"><h2>Accounts</h2><table><thead><tr><th>Full name</th><th>Phone</th><th>School position</th><th>Access</th><th>Created</th></tr></thead><tbody>{% for user in rows %}<tr><td>{{ user['full_name'] }}</td><td>{{ user['phone'] or '-' }}</td><td>{{ user['school_position'] or '-' }}</td><td>{{ user['role'] }}</td><td>{{ user['created_at'] }}</td></tr>{% endfor %}</tbody></table></div>
-        """, "Staff & Admin", "users", rows=rows, class_names=CLASS_NAMES, subjects=SUBJECTS, weekdays=WEEKDAYS)
-
+    <div class="topbar"><div><h1>Staff & Admin</h1><p class="muted">Create staff sign-in profiles</p></div></div>
+    <div class="card"><h2>Register staff member</h2><form method="post"><div class="grid">
+    <div class="field"><label>Full name</label><input name="full_name" required></div>
+    <div class="field"><label>Phone number</label><input name="phone" type="tel" required></div>
+    <div class="field"><label>Position at school</label><input name="school_position" required></div>
+    <div class="field"><label>Class assigned to the teacher (optional)</label><select name="homeroom_class"><option value="">None</option>{% for c in class_names %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select></div>
+    <div class="field"><label>Username</label><input name="username" required></div>
+    <div class="field"><label>Temporary password</label><input type="password" name="password" required></div>
+    <div class="field"><label>App access permission</label><select name="role"><option value="staff">Staff</option><option value="admin">Admin</option></select></div>
+    <fieldset class="choice-panel full"><legend>Classes taught</legend><div class="choice-grid">{% for c in class_names %}<label><input type="checkbox" name="teaching_classes" value="{{ c }}"> {{ c }}</label>{% endfor %}</div></fieldset>
+    <fieldset class="choice-panel full"><legend>Subjects taught</legend><div class="choice-grid">{% for s in subjects %}<label><input type="checkbox" name="subjects" value="{{ s }}"> {{ s }}</label>{% endfor %}</div></fieldset>
+    <fieldset class="choice-panel full"><legend>Teaching days (Asabar to Laraba)</legend><div class="choice-grid">{% for d in ['Asabar','Lahadi','Litinin','Talata','Laraba'] %}<label><input type="checkbox" name="weekdays" value="{{ d }}"> {{ d }}</label>{% endfor %}</div></fieldset>
+    </div><br><button>Save staff member</button></form></div>
+    <div class="card"><h2>Accounts</h2><table><thead><tr><th>Full name</th><th>Phone</th><th>Username</th><th>Role</th></tr></thead><tbody>{% for r in rows %}<tr><td>{{ r['full_name'] }}</td><td>{{ r['phone'] }}</td><td>{{ r['username'] }}</td><td>{{ r['role'] }}</td></tr>{% endfor %}</tbody></table></div>
+    """, "Staff & Admin", "users", rows=rows, class_names=CLASS_NAMES, subjects=SUBJECTS)
 
 @app.route("/staff")
 @login_required
@@ -573,7 +571,7 @@ def staff_directory():
         """SELECT full_name, phone, school_position, homeroom_class,
                   teaching_classes, subjects, weekdays
            FROM users WHERE role = ? ORDER BY full_name""",
-        ("staff",),
+        ('staff',),
     ).fetchall()
     staff_members = []
     for row in rows:
@@ -582,22 +580,22 @@ def staff_directory():
             "phone": row["phone"],
             "school_position": row["school_position"],
             "homeroom_class": row["homeroom_class"],
-            "teaching_classes": json.loads(row["teaching_classes"] or "[]"),
-            "subjects": json.loads(row["subjects"] or "[]"),
-            "weekdays": json.loads(row["weekdays"] or "[]"),
+            "teaching_classes": json.loads(row["teaching_classes"] or '[]'),
+            "subjects": json.loads(row["subjects"] or '[]'),
+            "weekdays": json.loads(row["weekdays"] or '[]'),
         })
     return page("""
-        <div class="topbar"><div><h1>Staff directory</h1><p class="muted">Staff contact and teaching information. Visible to signed-in school accounts.</p></div></div>
-        <div class="grid">{% for member in staff_members %}<article class="card">
-          <h2>{{ member['full_name'] }}</h2>
-          <p><strong>Phone:</strong> {% if member['phone'] %}<a href="tel:{{ member['phone'] }}">{{ member['phone'] }}</a>{% else %}-{% endif %}</p>
-          <p><strong>Position:</strong> {{ member['school_position'] or '-' }}</p>
-          <p><strong>Assigned class:</strong> {{ member['homeroom_class'] or 'None' }}</p>
-          <p><strong>Classes taught:</strong> {{ member['teaching_classes']|join(', ') or 'None listed' }}</p>
-          <p><strong>Subjects:</strong> {{ member['subjects']|join(', ') or 'None listed' }}</p>
-          <p><strong>Days:</strong> {{ member['weekdays']|join(', ') or 'None listed' }}</p>
-        </article>{% else %}<div class="card">No staff profiles have been registered yet.</div>{% endfor %}</div>
-        """, "Staff directory", "staff", staff_members=staff_members)
+    <div class="topbar"><div><h1>Staff directory</h1><p class="muted">Staff contact and teaching info</p></div></div>
+    <div class="grid">{% for member in staff_members %}<article class="card">
+    <h2>{{ member['full_name'] }}</h2>
+    <p><strong>Phone:</strong> {% if member['phone'] %}<a href="tel:{{ member['phone'] }}">{{ member['phone'] }}</a>{% else %} - {% endif %}</p>
+    <p><strong>Position:</strong> {{ member['school_position'] or ' - ' }}</p>
+    <p><strong>Assigned Class:</strong> {{ member['homeroom_class'] or 'None' }}</p>
+    <p><strong>Classes taught:</strong> {{ member['teaching_classes']|join(', ') or 'None' }}</p>
+    <p><strong>Subjects:</strong> {{ member['subjects']|join(', ') or 'None listed' }}</p>
+    <p><strong>Days:</strong> {{ member['weekdays']|join(', ') or 'None listed' }}</p>
+    </article>{% else %}<div class="card">No staff profiles have been registered yet.</div>{% endfor %}</div>
+    """, "Staff directory", "staff", staff_members=staff_members)
 
 
 if __name__ == "__main__":

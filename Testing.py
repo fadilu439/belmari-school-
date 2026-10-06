@@ -241,151 +241,43 @@ def admin_required(view):
 
 BASE_HTML = """
 <!doctype html>
-<html lang="en" dir="ltr">
+<html>
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ title }} | MADRASATU BELMARI QUR'ANIC SCHOOL</title>
-  <style>
-    :root {
-      --bg: #f8f9ff;
-      --paper: #ffffff;
-      --ink: #0f172a;
-      --muted: #64748b;
-      --primary: #0b2a5b;
-      --primary-dark: #081f43;
-      --primary-soft: #e8eefb;
-      --accent: #3b82f6;
-      --accent-soft: #dbe3f5;
-      --border: #dbe3f5;
-      --sidebar: #0a2142;
-      --sidebar-soft: #12346a;
-      --success-bg: #ecfdf5;
-      --error-bg: #fef2f2;
-      --shadow: 0 20px 50px rgba(11,42,91,.12);
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--ink);
-      font-family: 'Inter', Arial, sans-serif;
-      line-height: 1.5;
-    }
-    a { color: inherit; text-decoration: none; }
-    .layout { min-height:100vh; display:flex; }
-    aside {
-      width: 270px;
-      background: linear-gradient(180deg, var(--sidebar) 0%, var(--sidebar-soft) 100%);
-      color: #edf5ff;
-      padding: 24px 16px;
-      flex-shrink: 0;
-    }
-    .brand-wrap {
-      display:flex;
-      align-items:center;
-      gap:12px;
-      padding: 10px 4px 18px;
-      margin-bottom: 18px;
-      border-bottom: 1px solid rgba(255,255,255,0.1);
-    }
-    .brand-mark {
-      width: 46px;
-      height: 46px;
-      border-radius: 12px;
-      background: white;
-      color: var(--primary);
-      display:grid;
-      place-items:center;
-      font-weight: 900;
-      font-size: 20px;
-    }
-    .brand {
-      font-size: 12.5px;
-      font-weight: 800;
-      line-height: 1.3;
-      color: white;
-    }
-    .welcome {
-      color: #9fb6d8;
-      font-size: 13px;
-      margin: 0 0 16px;
-    }
-    nav a {
-      display:block;
-      padding: 11px 14px;
-      border-radius: 10px;
-      margin: 4px 0;
-      color: #a9bddf;
-      font-weight: 600;
-      font-size:14px;
-      transition: .2s;
-    }
-    nav a:hover, nav a.active {
-      background: rgba(255,255,255,0.10);
-      color: white;
-    }
-    main { flex: 1; padding: 30px; max-width: 1500px; }
-    .topbar { display:flex; justify-content:space-between; gap:16px; align-items:center; margin-bottom:24px; }
-    h1,h2,h3 { margin-top:0; }
-    h1 { font-size: 28px; font-weight:800; color:var(--primary); margin-bottom: 6px; letter-spacing:-.5px }
-    h2 { font-size: 18px; font-weight:700; }
-    .muted { color: var(--muted); }
-    .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:18px; margin-bottom:24px; }
-    .card { background: var(--paper); border: 1px solid var(--border); border-radius: 16px; padding: 24px; box-shadow: var(--shadow); }
-    .stat { border-top: 4px solid var(--primary); }
-    .stat strong { display:block; font-size: 32px; margin-top:8px; color: var(--primary); font-weight:800; }
-    .toolbar { display:flex; flex-wrap:wrap; gap:12px; margin-bottom:20px; }
-    input,select,textarea {
-      width:100%; padding: 13px 14px; border: 1.5px solid #d0d9ec; border-radius: 10px; background:#fff; font:inherit; color: var(--ink);
-    }
-    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 4px rgba(11,42,91,0.08); }
-    textarea { min-height: 120px; resize: vertical; }
-    .search { flex:1; min-width:220px; }
-    button,.button { border:0; border-radius: 10px; padding: 12px 20px; background: var(--primary); color:white; cursor:pointer; font:inherit; display:inline-block; font-weight: 700; }
-    button:hover,.button:hover { background:#081f43; }
-    .button.gold { background: #0b2a5b; }
-    .button.light { background:#e8eefb; color: var(--ink); }
-    .button.danger { background: #dc2626; }
-    table { width:100%; border-collapse: collapse; background: white; border-radius:14px; overflow:hidden; box-shadow:var(--shadow); }
-    th,td { padding: 14px 18px; border-bottom:1px solid var(--border); text-align:left; }
-    th { background:#f1f5fb; color:#2F3A4C; font-weight:700; font-size:13px; text-transform:uppercase; letter-spacing:.5px }
-    .form-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:16px; }
-    .field label { display:block; font-weight:700; font-size:13px; color:var(--primary); margin-bottom:6px; }
-    .full { grid-column:1/-1; }
-    .flash { padding:12px 15px; border-radius:10px; background: var(--success-bg); margin-bottom:15px; }
-    .flash.error { background: var(--error-bg); }
-   .login-page {
-    min-height:100vh;
-    display:grid;
-    place-items:center;
-    padding:20px;
-    background: radial-gradient(1000px 500px at 20% 0%, #1a4fb0 0%, #0b2a5b 70%, #081d40 100%);
-  }
-    .login-box {
-      width:min(420px, 100%);
-      background: white;
-      padding: 36px 32px;
-      border-radius: 20px;
-      box-shadow: 0 24px 60px rgba(0,0,0,.25);
-    }
-    .login-box h1 { color: var(--primary); }
-    .login-logo { display:flex; align-items:center; gap:12px; margin-bottom: 18px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
-    .login-mark { width: 46px; height: 46px; border-radius: 12px; background: var(--primary); color: white; display:grid; place-items:center; font-weight: 900; font-size: 20px; }
-    .school-name { font-size: 22px; font-weight: 800; color: var(--primary); margin-bottom: 4px; }
-    .brand-subtitle { color: var(--muted); font-size: 14px; margin-bottom: 18px; }
-    @media(max-width:900px) { aside { width:220px; } .grid { grid-template-columns:repeat(2,1fr); } main { padding:20px; } }
-    @media(max-width:620px) { .layout { display:block; } aside { width:100%; } .grid,.form-grid { grid-template-columns:1fr; } main { padding:15px; } .topbar { align-items:flex-start; flex-direction:column; } table { min-width:850px; } }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }} - MADRASATU BELMARI</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+:root{--bg:#f8f9ff;--paper:#fff;--ink:#0f172a;--muted:#64748b;--primary:#0b2a5b;--primary-dark:#081f43;--border:#dbe3f5;--sidebar:#0a2142;--sidebar-soft:#12346a;--success-bg:#ecfdf5;--error-bg:#fef2f2;--shadow:0 20px 50px rgba(11,42,91,.12)}
+*{box-sizing:border-box} body{margin:0; background:var(--bg); color:var(--ink); font-family:'Inter',sans-serif; line-height:1.5}
+a{color:inherit; text-decoration:none} .layout{min-height:100vh; display:flex}
+aside{width:270px; background:linear-gradient(180deg,var(--sidebar) 0%,var(--sidebar-soft) 100%); color:#edf5ff; padding:24px 16px}
+.brand-wrap{display:flex; align-items:center; gap:12px; padding:10px 4px 18px; margin-bottom:18px; border-bottom:1px solid rgba(255,255,255,.1)}
+.brand-mark{width:46px; height:46px; border-radius:12px; background:white; color:var(--primary); display:grid; place-items:center; font-weight:900; font-size:20px}
+.brand{font-size:12.5px; font-weight:800; line-height:1.3; color:white} .welcome{color:#9fb6d8; font-size:13px; margin-bottom:16px}
+nav a{display:block; padding:11px 14px; border-radius:10px; margin:4px 0; color:#a9bddf; font-weight:600; font-size:14px}
+nav a:hover,nav a.active{background:rgba(255,255,255,.10); color:white}
+main{flex:1; padding:30px; max-width:1500px} h1{font-size:28px; font-weight:800; color:var(--primary); margin:0}
+.grid{display:grid; grid-template-columns:repeat(4,1fr); gap:18px; margin-bottom:24px}
+.card,.stat{border-radius:16px; padding:24px; box-shadow:var(--shadow); background:#fff; border:1px solid var(--border)}
+.stat{border-top:4px solid var(--primary)} .stat strong{display:block; font-size:32px; margin-top:8px; color:var(--primary); font-weight:800}
+.button{border:0; border-radius:10px; padding:12px 20px; background:var(--primary); color:white; font-weight:700; display:inline-block}
+table{width:100%; border-collapse:collapse; background:white; border-radius:14px; overflow:hidden; box-shadow:var(--shadow)}
+th,td{padding:14px 18px; border-bottom:1px solid var(--border); text-align:left} th{background:#f1f5fb; font-size:13px; text-transform:uppercase}
+.flash{padding:12px 15px; border-radius:10px; background:var(--success-bg); margin-bottom:15px} .flash.error{background:var(--error-bg)}
+.login-page{min-height:100vh; display:grid; place-items:center; padding:20px; background:radial-gradient(1000px 500px at 20% 0%, #1a4fb0 0%, #0b2a5b 70%, #081d40 100%)}
+.login-box{width:min(420px,100%); background:white; padding:36px 32px; border-radius:20px; box-shadow:0 24px 60px rgba(0,0,0,.25)}
+</style>
 </head>
 <body>
 {% if g.user %}<div class="layout"><aside><div class="brand-wrap"><div class="brand-mark">Q</div><div class="brand">MADRASATU BELMARI<br>QUR'ANIC SCHOOL</div></div><div class="welcome">Welcome, {{ g.user['full_name'] }}</div><nav>
-  <a href="{{ url_for('dashboard') }}" class="{{ 'active' if page == 'dashboard' else '' }}">Dashboard</a>
-    <a href="{{ url_for('students') }}" class="{{ 'active' if page == 'students' else '' }}">Students</a>
-        <a href="{{ url_for('classes') }}" class="{{ 'active' if page == 'classes' else '' }}">Classes</a>
-    <a href="{{ url_for('staff_directory') }}" class="{{ 'active' if page == 'staff' else '' }}">Staff directory</a>
-    <a href="{{ url_for('announcements') }}" class="{{ 'active' if page == 'announcements' else '' }}">Announcements</a>
-    {% if g.user['role'] == 'admin' %}<a href="{{ url_for('users') }}" class="{{ 'active' if page == 'users' else '' }}">Staff &amp; Admin</a>{% endif %}
-    <a href="{{ url_for('logout') }}">Log out</a>
+<a href="{{ url_for('dashboard') }}" class="{{ 'active' if page == 'dashboard' else '' }}">Dashboard</a>
+<a href="{{ url_for('students') }}" class="{{ 'active' if page == 'students' else '' }}">Students</a>
+<a href="{{ url_for('classes') }}" class="{{ 'active' if page == 'classes' else '' }}">Classes</a>
+<a href="{{ url_for('staff_directory') }}" class="{{ 'active' if page == 'staff' else '' }}">Staff directory</a>
+<a href="{{ url_for('announcements') }}" class="{{ 'active' if page == 'announcements' else '' }}">Announcements</a>
+{% if g.user['role'] == 'admin' %}<a href="{{ url_for('users') }}" class="{{ 'active' if page == 'users' else '' }}">Staff & Admin</a>{% endif %}
+<a href="{{ url_for('logout') }}">Log out</a>
 </nav></aside><main>
 {% else %}<div class="login-page"><div class="login-box">{% endif %}
 {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="flash {{ category }}">{{ message }}</div>{% endfor %}{% endwith %}

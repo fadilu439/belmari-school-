@@ -239,7 +239,7 @@ def admin_required(view):
     return wrapped_view
 
 
-BASE_HTML = """
+BASE_HTML = '''
 <!doctype html>
 <html>
 <head>
@@ -284,7 +284,7 @@ th,td{padding:14px 18px; border-bottom:1px solid var(--border); text-align:left}
 {{ content|safe }}
 {% if g.user %}</main></div>{% else %}</div></div>{% endif %}
 </body></html>
-"""
+'''
 
 
 def page(content, title, page_name, **context):

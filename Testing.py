@@ -6,7 +6,6 @@ from functools import wraps
 from flask import Flask, flash, g, redirect, render_template_string, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
-
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "change-this-secret-key")
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -41,7 +40,6 @@ SUBJECTS = (
 )
 WEEKDAYS = ("Asabar", "Lahadi", "Litinin", "Talata", "Laraba")
 
-
 class DBAdapter:
     def __init__(self, connection):
         self.connection = connection
@@ -71,10 +69,8 @@ class DBAdapter:
     def close(self):
         self.connection.close()
 
-
 def use_postgres():
     return bool(DATABASE_URL)
-
 
 def get_db():
     if "db" not in g:
@@ -87,13 +83,11 @@ def get_db():
             g.db = DBAdapter(connection)
     return g.db
 
-
 @app.teardown_appcontext
 def close_db(_error=None):
     db = g.pop("db", None)
     if db is not None:
         db.close()
-
 
 def init_db():
     db = get_db()
@@ -197,14 +191,13 @@ def init_db():
                 ("Main Administrator", "admin", generate_password_hash("admin123"), "admin"),
             )
     else:
-        admin = db.execute("SELECT id FROM users WHERE username = ?", ("admin",)).fetchone()
+        admin = db.execute("SELECT id FROM users WHERE username =?", ("admin",)).fetchone()
         if admin is None:
             db.execute(
-                "INSERT INTO users (full_name, username, password_hash, role) VALUES (?, ?, ?, ?)",
+                "INSERT INTO users (full_name, username, password_hash, role) VALUES (?,?,?,?)",
                 ("Main Administrator", "admin", generate_password_hash("admin123"), "admin"),
             )
     db.commit()
-
 
 @app.before_request
 def prepare_request():
@@ -212,9 +205,8 @@ def prepare_request():
     g.user = None
     if session.get("user_id"):
         g.user = get_db().execute(
-            "SELECT * FROM users WHERE id = ?", (session["user_id"],)
+            "SELECT * FROM users WHERE id =?", (session["user_id"],)
         ).fetchone()
-
 
 def login_required(view):
     @wraps(view)
@@ -222,80 +214,284 @@ def login_required(view):
         if g.user is None:
             return redirect(url_for("login"))
         return view(*args, **kwargs)
-
     return wrapped_view
-
 
 def admin_required(view):
     @wraps(view)
     def wrapped_view(*args, **kwargs):
         if g.user is None:
             return redirect(url_for("login"))
-        if g.user["role"] != "admin":
+        if g.user["role"]!= "admin":
             flash("This section is for the main administrator only.", "error")
             return redirect(url_for("dashboard"))
         return view(*args, **kwargs)
-
     return wrapped_view
 
-
-BASE_HTML = '''
+BASE_HTML = """
 <!doctype html>
-<html>
+<html lang="en" dir="ltr">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{ title }} - MADRASATU BELMARI</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
-:root{--bg:#f8f9ff;--paper:#fff;--ink:#0f172a;--muted:#64748b;--primary:#0b2a5b;--primary-dark:#081f43;--border:#dbe3f5;--sidebar:#0a2142;--sidebar-soft:#12346a;--success-bg:#ecfdf5;--error-bg:#fef2f2;--shadow:0 20px 50px rgba(11,42,91,.12)}
-*{box-sizing:border-box} body{margin:0; background:var(--bg); color:var(--ink); font-family:'Inter',sans-serif; line-height:1.5}
-a{color:inherit; text-decoration:none} .layout{min-height:100vh; display:flex}
-aside{width:270px; background:linear-gradient(180deg,var(--sidebar) 0%,var(--sidebar-soft) 100%); color:#edf5ff; padding:24px 16px}
-.brand-wrap{display:flex; align-items:center; gap:12px; padding:10px 4px 18px; margin-bottom:18px; border-bottom:1px solid rgba(255,255,255,.1)}
-.brand-mark{width:46px; height:46px; border-radius:12px; background:white; color:var(--primary); display:grid; place-items:center; font-weight:900; font-size:20px}
-.brand{font-size:12.5px; font-weight:800; line-height:1.3; color:white} .welcome{color:#9fb6d8; font-size:13px; margin-bottom:16px}
-nav a{display:block; padding:11px 14px; border-radius:10px; margin:4px 0; color:#a9bddf; font-weight:600; font-size:14px}
-nav a:hover,nav a.active{background:rgba(255,255,255,.10); color:white}
-main{flex:1; padding:30px; max-width:1500px} h1{font-size:28px; font-weight:800; color:var(--primary); margin:0}
-.grid{display:grid; grid-template-columns:repeat(4,1fr); gap:18px; margin-bottom:24px}
-.card,.stat{border-radius:16px; padding:24px; box-shadow:var(--shadow); background:#fff; border:1px solid var(--border)}
-.stat{border-top:4px solid var(--primary)} .stat strong{display:block; font-size:32px; margin-top:8px; color:var(--primary); font-weight:800}
-.button{border:0; border-radius:10px; padding:12px 20px; background:var(--primary); color:white; font-weight:700; display:inline-block}
-table{width:100%; border-collapse:collapse; background:white; border-radius:14px; overflow:hidden; box-shadow:var(--shadow)}
-th,td{padding:14px 18px; border-bottom:1px solid var(--border); text-align:left} th{background:#f1f5fb; font-size:13px; text-transform:uppercase}
-.flash{padding:12px 15px; border-radius:10px; background:var(--success-bg); margin-bottom:15px} .flash.error{background:var(--error-bg)}
-.login-page{min-height:100vh; display:grid; place-items:center; padding:20px; background:radial-gradient(1000px 500px at 20% 0%, #1a4fb0 0%, #0b2a5b 70%, #081d40 100%)}
-.login-box{width:min(420px,100%); background:white; padding:36px 32px; border-radius:20px; box-shadow:0 24px 60px rgba(0,0,0,.25)}
-</style>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ title }} | MADRASATU BELMARI QUR'ANIC SCHOOL</title>
+  <style>
+    :root {
+      --bg: #f0f7ff;
+      --paper: #ffffff;
+      --ink: #0f2440;
+      --muted: #6b84a3;
+      --primary: #0b3fa6;
+      --primary-dark: #082d77;
+      --primary-soft: #e6f0ff;
+      --accent: #3b82f6;
+      --accent-soft: #dbeafe;
+      --border: #dbe7fb;
+      --sidebar: #071e42;
+      --sidebar-soft: #0f3a84;
+      --success-bg: #e8f5ff;
+      --error-bg: #ffea;
+      --shadow: 0 14px 36px rgba(11, 63, 166, 0.14);
+      --shadow-soft: 0 8px 22px rgba(11, 63, 166, 0.10);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, #f7fbff 0%, #eef6ff 100%);
+      color: var(--ink);
+      font-family: Arial, Helvetica, sans-serif;
+      line-height: 1.5;
+    }
+    a { color: inherit; text-decoration: none; }
+   .layout { min-height:100vh; display:flex; }
+    aside {
+      width: 270px;
+      background: linear-gradient(180deg, var(--sidebar) 0%, var(--sidebar-soft) 100%);
+      color: #edf5ff;
+      padding: 28px 18px;
+      flex-shrink: 0;
+      box-shadow: 4px 0 24px rgba(7, 30, 66, 0.18);
+    }
+   .brand-wrap {
+      display:flex;
+      align-items:center;
+      gap:12px;
+      padding: 8px 4px 18px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.14);
+    }
+   .brand-mark {
+      width: 54px;
+      height: 54px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #ffffff 0%, #b8d4ff 100%);
+      color: var(--primary-dark);
+      display:grid;
+      place-items:center;
+      font-weight: 900;
+      font-size: 24px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.18), inset 0 0 0 3px rgba(255,255,255,0.7);
+    }
+   .brand {
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1.25;
+      color: #f4f8ff;
+      letter-spacing: 0.3px;
+    }
+   .welcome {
+      color: #cfe0ff;
+      font-size: 14px;
+      margin: 0 0 18px;
+    }
+    nav a {
+      display:block;
+      padding: 13px 14px;
+      border-radius: 12px;
+      margin: 6px 0;
+      color: #d9e9ff;
+      transition: all 0.2s ease;
+      font-weight: 600;
+      border: 1px solid transparent;
+    }
+    nav a:hover, nav a.active {
+      background: rgba(255,255,255,0.12);
+      color: #ffffff;
+      border-color: rgba(255,255,255,0.18);
+      box-shadow: var(--shadow-soft);
+      transform: translateX(2px);
+    }
+    main {
+      flex: 1;
+      padding: 32px;
+      max-width: 1500px;
+    }
+   .topbar {
+      display:flex;
+      justify-content:space-between;
+      gap:16px;
+      align-items:center;
+      margin-bottom:24px;
+    }
+    h1,h2,h3 { margin-top:0; }
+    h1 { font-size: 30px; margin-bottom: 6px; color: var(--primary-dark); }
+    h2 { font-size: 22px; color: var(--primary-dark); }
+   .muted { color: var(--muted); }
+   .grid {
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      gap:18px;
+      margin-bottom:26px;
+    }
+   .card {
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 22px;
+      box-shadow: var(--shadow);
+    }
+   .stat { border-top: 4px solid var(--accent); }
+   .stat strong {
+      display:block;
+      font-size: 32px;
+      margin-top:10px;
+      color: var(--primary);
+    }
+   .toolbar {
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      margin-bottom:18px;
+    }
+    input,select,textarea {
+      width:100%;
+      padding: 13px 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background:#fff;
+      font:inherit;
+      color: var(--ink);
+      box-shadow: 0 2px 8px rgba(11,63,166,0.04);
+      transition: all 0.2s ease;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px rgba(59,130,246,0.15);
+    }
+    textarea { min-height: 120px; resize: vertical; }
+   .search { flex:1; min-width:220px; }
+    button,.button {
+      border:0;
+      border-radius: 12px;
+      padding: 13px 20px;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      color:white;
+      cursor:pointer;
+      font:inherit;
+      display:inline-block;
+      font-weight: 700;
+      box-shadow: 0 8px 18px rgba(11,63,166,0.22);
+      transition: all 0.2s ease;
+    }
+    button:hover,.button:hover { transform: translateY(-1px); box-shadow: 0 12px 24px rgba(11,63,166,0.28); }
+   .button.gold { background: #aa7b1d; }
+   .button.light { background:#ffffff; color: var(--primary-dark); border:1px solid var(--border); box-shadow: var(--shadow-soft); }
+   .button.danger { background: #b5473a; }
+    table { width:100%; border-collapse: collapse; background: white; border-radius: 12px; overflow:hidden; }
+    th,td { padding: 13px 12px; border-bottom:1px solid var(--border); text-align:left; vertical-align:top; }
+    th { background:#f0f6ff; color: var(--primary-dark); font-weight:800; }
+   .form-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:16px; }
+   .choice-panel { border:1px solid var(--border); border-radius:14px; padding:16px; background: #fbfdff; box-shadow: inset 0 1px 0 rgba(255,255,255,0.8); }
+   .choice-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:8px 14px; }
+   .choice-option { display:flex!important; align-items:center; gap:8px; margin:0; font-weight:500!important; }
+   .choice-option input[type="checkbox"] { width:18px; height:18px; margin:0; padding:0; }
+   .field label { display:block; font-weight:700; margin-bottom:6px; color: var(--primary-dark); }
+   .full { grid-column:1/-1; }
+   .flash { padding:14px 16px; border-radius:12px; background: var(--success-bg); margin-bottom:16px; color: #0f3d62; border:1px solid var(--border); box-shadow: var(--shadow-soft); }
+   .flash.error { background: var(--error-bg); color: #7c2a2a; }
+   .login-page {
+      min-height:100vh;
+      display:grid;
+      place-items:center;
+      padding:20px;
+      background: radial-gradient(1200px 600px at 20% -10%, #2a5ec8 0%, transparent 60%), radial-gradient(1000px 500px at 90% 110%, #3b82f6 0%, transparent 60%), linear-gradient(135deg, #071e42 0%, #0f3a84 45%, #1a5bd6 100%);
+    }
+   .login-box {
+      width:min(480px, 100%);
+      background: rgba(255,255,255,0.98);
+      padding: 36px 32px;
+      border-radius: 24px;
+      box-shadow: 0 24px 60px rgba(7, 30, 66, 0.28), 0 8px 20px rgba(7, 30, 66, 0.18);
+      border: 1px solid rgba(255,255,255,0.6);
+      backdrop-filter: blur(6px);
+    }
+   .login-box h1 { color: var(--primary); }
+   .login-logo {
+      display:flex;
+      align-items:center;
+      gap:14px;
+      margin-bottom: 18px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+   .login-mark {
+      width: 62px;
+      height: 62px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, #ffffff 0%, #a9c8ff 100%);
+      color: var(--primary-dark);
+      display:grid;
+      place-items:center;
+      font-weight: 900;
+      font-size: 28px;
+      box-shadow: 0 8px 20px rgba(11,63,166,0.18), inset 0 0 0 3px rgba(255,255,255,0.7);
+    }
+   .announcement {
+      border-left: 4px solid var(--accent);
+      margin-bottom: 14px;
+      background: #ffffff;
+      box-shadow: var(--shadow-soft);
+    }
+   .actions { display:flex; gap:6px; flex-wrap:wrap; }
+   .school-name {
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--primary-dark);
+      margin-bottom: 8px;
+    }
+   .brand-subtitle {
+      color: var(--muted);
+      font-size: 14px;
+      margin-bottom: 18px;
+    }
+    @media(max-width:900px) { aside { width:210px; }.grid { grid-template-columns:repeat(2,1fr); } main { padding:20px; } }
+    @media(max-width:620px) {.layout { display:block; } aside { width:100%; padding:12px; } nav { display:flex; overflow:auto; gap:4px; } nav a { white-space:nowrap; }.grid,.form-grid { grid-template-columns:1fr; } main { padding:15px; }.topbar { align-items:flex-start; flex-direction:column; } table { min-width:850px; } }
+  </style>
 </head>
 <body>
 {% if g.user %}<div class="layout"><aside><div class="brand-wrap"><div class="brand-mark">Q</div><div class="brand">MADRASATU BELMARI<br>QUR'ANIC SCHOOL</div></div><div class="welcome">Welcome, {{ g.user['full_name'] }}</div><nav>
-<a href="{{ url_for('dashboard') }}" class="{{ 'active' if page == 'dashboard' else '' }}">Dashboard</a>
-<a href="{{ url_for('students') }}" class="{{ 'active' if page == 'students' else '' }}">Students</a>
-<a href="{{ url_for('classes') }}" class="{{ 'active' if page == 'classes' else '' }}">Classes</a>
-<a href="{{ url_for('staff_directory') }}" class="{{ 'active' if page == 'staff' else '' }}">Staff directory</a>
-<a href="{{ url_for('announcements') }}" class="{{ 'active' if page == 'announcements' else '' }}">Announcements</a>
-{% if g.user['role'] == 'admin' %}<a href="{{ url_for('users') }}" class="{{ 'active' if page == 'users' else '' }}">Staff & Admin</a>{% endif %}
-<a href="{{ url_for('logout') }}">Log out</a>
+  <a href="{{ url_for('dashboard') }}" class="{{ 'active' if page == 'dashboard' else '' }}">Dashboard</a>
+    <a href="{{ url_for('students') }}" class="{{ 'active' if page == 'students' else '' }}">Students</a>
+        <a href="{{ url_for('classes') }}" class="{{ 'active' if page == 'classes' else '' }}">Classes</a>
+    <a href="{{ url_for('staff_directory') }}" class="{{ 'active' if page == 'staff' else '' }}">Staff directory</a>
+    <a href="{{ url_for('announcements') }}" class="{{ 'active' if page == 'announcements' else '' }}">Announcements</a>
+    {% if g.user['role'] == 'admin' %}<a href="{{ url_for('users') }}" class="{{ 'active' if page == 'users' else '' }}">Staff &amp; Admin</a>{% endif %}
+    <a href="{{ url_for('logout') }}">Log out</a>
 </nav></aside><main>
 {% else %}<div class="login-page"><div class="login-box">{% endif %}
 {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="flash {{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
 {{ content|safe }}
 {% if g.user %}</main></div>{% else %}</div></div>{% endif %}
 </body></html>
-'''
-
+"""
 
 def page(content, title, page_name, **context):
     rendered_content = render_template_string(content, **context)
     return render_template_string(BASE_HTML, content=rendered_content, title=title, page=page_name)
 
-
 @app.route("/login", methods=("GET", "POST"))
 def login():
     if request.method == "POST":
-        user = get_db().execute("SELECT * FROM users WHERE username = ?", (request.form["username"].strip(),)).fetchone()
+        user = get_db().execute("SELECT * FROM users WHERE username =?", (request.form["username"].strip(),)).fetchone()
         if user and check_password_hash(user["password_hash"], request.form["password"]):
             session.clear()
             session["user_id"] = user["id"]
@@ -309,20 +505,19 @@ def login():
         <div class="brand-subtitle">QUR'ANIC SCHOOL</div>
       </div>
     </div>
-    <div class="brand-subtitle" style="margin-top:-4px;">Staff portal access</div>
+    <div class="brand-subtitle" style="margin-top:-4px;">Secure staff portal</div>
     <form method="post">
       <div class="field"><label>Username</label><input name="username" required autofocus></div><br>
       <div class="field"><label>Password</label><input type="password" name="password" required></div><br>
       <button>Log in</button>
     </form>
-    <p class="muted" style="margin-top:18px;">Contact administrator for access.</p>
-
+    <p class="muted" style="margin-top:18px;">Please sign in with your staff credentials to continue.</p>
+    """, "Log in", "login")
 
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect(url_for("login"))
-
 
 @app.route("/")
 @login_required
@@ -345,7 +540,6 @@ def dashboard():
     <a class="card" href="{{ url_for('staff_directory') }}" style="display:block; margin-bottom:24px;"><h2>Staff directory</h2><p class="muted">View staff contact, role, classes, subjects, and days.</p><span class="button">View staff</span></a>
     <div class="card"><h2>Latest announcements</h2>{% for item in latest %}<div class="announcement"><h3>{{ item['title'] }}</h3><p>{{ item['body'] }}</p><small class="muted">{{ item['created_at'] }}</small></div>{% else %}<p class="muted">No announcements yet.</p>{% endfor %}</div>
     """, "Dashboard", "dashboard", stats=stats, latest=latest)
-
 
 @app.route("/students")
 @login_required
@@ -370,7 +564,6 @@ def students():
             <div class="card"><table><thead><tr>
             <th>Admission No.</th><th>Student</th><th>Class</th><th>Date of birth</th><th>Parent</th><th>Phone</th><th>Status</th><th>Registered on</th><th>Actions</th></tr></thead><tbody>{% for student in rows %}<tr><td>{{ student['admission_no'] }}</td><td><b>{{ student['full_name'] }}</b><br>{{ student['gender'] or '' }}</td><td>{{ student['class_name'] or '-' }}</td><td>{{ student['date_of_birth'] or '-' }}</td><td>{{ student['parent_name'] }}</td><td>{{ student['parent_phone'] }}</td><td>{{ student['status'] }}</td><td>{{ student['created_at'] }}</td><td><div class="actions"><a class="button light" href="{{ url_for('student_edit', student_id=student['id']) }}">Edit</a><form method="post" action="{{ url_for('student_delete', student_id=student['id']) }}"><button class="danger" onclick="return confirm('Delete this student?')">Delete</button></form></div></td></tr>{% else %}<tr><td colspan="9">No students found.</td></tr>{% endfor %}</tbody></table></div>
         """, "Students", "students", query=query, rows=rows)
-
 
 @app.route("/classes")
 @login_required
@@ -406,7 +599,6 @@ def classes():
         {% else %}<div class="card">No students have been registered yet.</div>{% endfor %}
         """, "Classes", "classes", class_groups=class_groups)
 
-
 STUDENT_FORM = """
 <div class="topbar"><div><h1>{{ heading }}</h1><p class="muted">Fill in the required student information.</p></div><a class="button light" href="{{ url_for('students') }}">Back</a></div>
 <div class="card"><form method="post"><div class="form-grid">
@@ -422,10 +614,8 @@ STUDENT_FORM = """
 </div><br><button>Save record</button></form></div>
 """
 
-
 def student_values():
     return tuple(request.form.get(key, "").strip() for key in ("admission_no", "full_name", "gender", "date_of_birth", "class_name", "parent_name", "parent_phone", "address", "status"))
-
 
 @app.route("/students/new", methods=("GET", "POST"))
 @login_required
@@ -440,12 +630,11 @@ def student_new():
             flash("That admission number is already in use.", "error")
     return page(STUDENT_FORM, "New student", "students", heading="Add new student", student=None, class_names=CLASS_NAMES)
 
-
 @app.route("/students/<int:student_id>/edit", methods=("GET", "POST"))
 @login_required
 def student_edit(student_id):
     db = get_db()
-    student = db.execute("SELECT * FROM students WHERE id = ?", (student_id,)).fetchone()
+    student = db.execute("SELECT * FROM students WHERE id =?", (student_id,)).fetchone()
     if student is None:
         return "Student not found", 404
     if request.method == "POST":
@@ -458,15 +647,13 @@ def student_edit(student_id):
             flash("That admission number is already in use.", "error")
     return page(STUDENT_FORM, "Edit student", "students", heading="Edit student record", student=student, class_names=CLASS_NAMES)
 
-
 @app.post("/students/<int:student_id>/delete")
 @admin_required
 def student_delete(student_id):
-    get_db().execute("DELETE FROM students WHERE id = ?", (student_id,))
+    get_db().execute("DELETE FROM students WHERE id =?", (student_id,))
     get_db().commit()
     flash("The student record was deleted.")
     return redirect(url_for("students"))
-
 
 @app.route("/announcements", methods=("GET", "POST"))
 @login_required
@@ -485,8 +672,7 @@ def announcements():
             <div class="topbar"><div><h1>Announcements</h1><p class="muted">Share important updates with the school staff.</p></div></div>
             <div class="card"><h2>New announcement</h2><form method="post"><div class="form-grid"><div class="field"><label for="title">Title</label><input name="title" required></div><div class="field full"><label>Message</label><textarea name="body" required></textarea></div></div><br><button>Publish announcement</button></form></div><br>
             {% for item in rows %}<div class="card announcement"><h2>{{ item['title'] }}</h2><p>{{ item['body'] }}</p><small class="muted">{{ item['author'] }} | {{ item['created_at'] }}</small></div>{% else %}<div class="card">No announcements.</div>{% endfor %}
-        """, "Announcements", "announcements")
-
+        """, "Announcements", "announcements", rows=rows)
 
 @app.route("/users", methods=("GET", "POST"))
 @admin_required
@@ -545,24 +731,25 @@ def users():
                 db.rollback()
                 if isinstance(error, sqlite3.IntegrityError) or error.__class__.__name__ == "UniqueViolation":
                     flash("That username is already in use.", "error")
-                    else:
-        rows = db.execute("SELECT * FROM users ORDER BY id").fetchall()
+                else:
+                    raise
+    rows = db.execute("SELECT * FROM users ORDER BY id").fetchall()
     return page("""
-    <div class="topbar"><div><h1>Staff & Admin</h1><p class="muted">Create staff sign-in profiles</p></div></div>
-    <div class="card"><h2>Register staff member</h2><form method="post"><div class="grid">
-    <div class="field"><label>Full name</label><input name="full_name" required></div>
-    <div class="field"><label>Phone number</label><input name="phone" type="tel" required></div>
-    <div class="field"><label>Position at school</label><input name="school_position" required></div>
-    <div class="field"><label>Class assigned to the teacher (optional)</label><select name="homeroom_class"><option value="">None</option>{% for c in class_names %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select></div>
-    <div class="field"><label>Username</label><input name="username" required></div>
-    <div class="field"><label>Temporary password</label><input type="password" name="password" required></div>
-    <div class="field"><label>App access permission</label><select name="role"><option value="staff">Staff</option><option value="admin">Admin</option></select></div>
-    <fieldset class="choice-panel full"><legend>Classes taught</legend><div class="choice-grid">{% for c in class_names %}<label><input type="checkbox" name="teaching_classes" value="{{ c }}"> {{ c }}</label>{% endfor %}</div></fieldset>
-    <fieldset class="choice-panel full"><legend>Subjects taught</legend><div class="choice-grid">{% for s in subjects %}<label><input type="checkbox" name="subjects" value="{{ s }}"> {{ s }}</label>{% endfor %}</div></fieldset>
-    <fieldset class="choice-panel full"><legend>Teaching days (Asabar to Laraba)</legend><div class="choice-grid">{% for d in ['Asabar','Lahadi','Litinin','Talata','Laraba'] %}<label><input type="checkbox" name="weekdays" value="{{ d }}"> {{ d }}</label>{% endfor %}</div></fieldset>
-    </div><br><button>Save staff member</button></form></div>
-    <div class="card"><h2>Accounts</h2><table><thead><tr><th>Full name</th><th>Phone</th><th>Username</th><th>Role</th></tr></thead><tbody>{% for r in rows %}<tr><td>{{ r['full_name'] }}</td><td>{{ r['phone'] }}</td><td>{{ r['username'] }}</td><td>{{ r['role'] }}</td></tr>{% endfor %}</tbody></table></div>
-    """, "Staff & Admin", "users", rows=rows, class_names=CLASS_NAMES, subjects=SUBJECTS)
+        <div class="topbar"><div><h1>Staff &amp; Admin</h1><p class="muted">Create staff sign-in accounts and maintain their school profiles.</p></div><a class="button light" href="{{ url_for('staff_directory') }}">Staff directory</a></div>
+        <div class="card"><h2>Register staff member</h2><form method="post"><div class="form-grid">
+          <div class="field"><label>Full name *</label><input name="full_name" required></div>
+          <div class="field"><label>Phone number *</label><input name="phone" type="tel" required></div>
+          <div class="field"><label>Position at school *</label><input name="school_position" placeholder="For example: Qur'an teacher" required></div>
+          <div class="field"><label>Class assigned to the teacher (optional)</label><select name="homeroom_class"><option value="">No assigned class</option>{% for class_name in class_names %}<option value="{{ class_name }}">{{ class_name }}</option>{% endfor %}</select></div>
+          <div class="field"><label>Username *</label><input name="username" required></div>
+          <div class="field"><label>Temporary password *</label><input type="password" name="password" minlength="6" required></div>
+          <div class="field"><label>App access permission</label><select name="role"><option value="staff">Staff</option><option value="admin">Admin</option></select></div>
+          <fieldset class="choice-panel full"><legend>Classes taught</legend><div class="choice-grid">{% for class_name in class_names %}<label class="choice-option"><input type="checkbox" name="teaching_classes" value="{{ class_name }}">{{ class_name }}</label>{% endfor %}</div></fieldset>
+          <fieldset class="choice-panel full"><legend>Subjects taught</legend><div class="choice-grid">{% for subject in subjects %}<label class="choice-option"><input type="checkbox" name="subjects" value="{{ subject }}">{{ subject }}</label>{% endfor %}</div></fieldset>
+          <fieldset class="choice-panel full"><legend>Teaching days (Asabar to Laraba)</legend><div class="choice-grid">{% for weekday in weekdays %}<label class="choice-option"><input type="checkbox" name="weekdays" value="{{ weekday }}">{{ weekday }}</label>{% endfor %}</div></fieldset>
+        </div><br><button>Save staff member</button></form></div><br>
+        <div class="card"><h2>Accounts</h2><table><thead><tr><th>Full name</th><th>Phone</th><th>School position</th><th>Access</th><th>Created</th></tr></thead><tbody>{% for user in rows %}<tr><td>{{ user['full_name'] }}</td><td>{{ user['phone'] or '-' }}</td><td>{{ user['school_position'] or '-' }}</td><td>{{ user['role'] }}</td><td>{{ user['created_at'] }}</td></tr>{% endfor %}</tbody></table></div>
+        """, "Staff & Admin", "users", rows=rows, class_names=CLASS_NAMES, subjects=SUBJECTS, weekdays=WEEKDAYS)
 
 @app.route("/staff")
 @login_required
@@ -570,8 +757,8 @@ def staff_directory():
     rows = get_db().execute(
         """SELECT full_name, phone, school_position, homeroom_class,
                   teaching_classes, subjects, weekdays
-           FROM users WHERE role = ? ORDER BY full_name""",
-        ('staff',),
+           FROM users WHERE role =? ORDER BY full_name""",
+        ("staff",),
     ).fetchall()
     staff_members = []
     for row in rows:
@@ -580,23 +767,22 @@ def staff_directory():
             "phone": row["phone"],
             "school_position": row["school_position"],
             "homeroom_class": row["homeroom_class"],
-            "teaching_classes": json.loads(row["teaching_classes"] or '[]'),
-            "subjects": json.loads(row["subjects"] or '[]'),
-            "weekdays": json.loads(row["weekdays"] or '[]'),
+            "teaching_classes": json.loads(row["teaching_classes"] or "[]"),
+            "subjects": json.loads(row["subjects"] or "[]"),
+            "weekdays": json.loads(row["weekdays"] or "[]"),
         })
     return page("""
-    <div class="topbar"><div><h1>Staff directory</h1><p class="muted">Staff contact and teaching info</p></div></div>
-    <div class="grid">{% for member in staff_members %}<article class="card">
-    <h2>{{ member['full_name'] }}</h2>
-    <p><strong>Phone:</strong> {% if member['phone'] %}<a href="tel:{{ member['phone'] }}">{{ member['phone'] }}</a>{% else %} - {% endif %}</p>
-    <p><strong>Position:</strong> {{ member['school_position'] or ' - ' }}</p>
-    <p><strong>Assigned Class:</strong> {{ member['homeroom_class'] or 'None' }}</p>
-    <p><strong>Classes taught:</strong> {{ member['teaching_classes']|join(', ') or 'None' }}</p>
-    <p><strong>Subjects:</strong> {{ member['subjects']|join(', ') or 'None listed' }}</p>
-    <p><strong>Days:</strong> {{ member['weekdays']|join(', ') or 'None listed' }}</p>
-    </article>{% else %}<div class="card">No staff profiles have been registered yet.</div>{% endfor %}</div>
-    """, "Staff directory", "staff", staff_members=staff_members)
-
+        <div class="topbar"><div><h1>Staff directory</h1><p class="muted">Staff contact and teaching information. Visible to signed-in school accounts.</p></div></div>
+        <div class="grid">{% for member in staff_members %}<article class="card">
+          <h2>{{ member['full_name'] }}</h2>
+          <p><strong>Phone:</strong> {% if member['phone'] %}<a href="tel:{{ member['phone'] }}">{{ member['phone'] }}</a>{% else %}-{% endif %}</p>
+          <p><strong>Position:</strong> {{ member['school_position'] or '-' }}</p>
+          <p><strong>Assigned class:</strong> {{ member['homeroom_class'] or 'None' }}</p>
+          <p><strong>Classes taught:</strong> {{ member['teaching_classes']|join(', ') or 'None listed' }}</p>
+          <p><strong>Subjects:</strong> {{ member['subjects']|join(', ') or 'None listed' }}</p>
+          <p><strong>Days:</strong> {{ member['weekdays']|join(', ') or 'None listed' }}</p>
+        </article>{% else %}<div class="card">No staff profiles have been registered yet.</div>{% endfor %}</div>
+        """, "Staff directory", "staff", staff_members=staff_members)
 
 if __name__ == "__main__":
     app.run(debug=True)

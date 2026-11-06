@@ -222,7 +222,75 @@ def init_db():
         ("Nishadat (Wasanni)", "2026-12-19", "2026-12-22", "Sports", "Nishadat (Wasanni)"),
         ("Rufe Makaranta / Walima", "2026-12-23", "2026-12-23", "School Closing", "Laraba - Rufe Makaranta / Walima"),
         ("Dawowa Makaranta (New Term)", "2027-01-02", "2027-01-02", "Term Opening", "Asabar - Dawowa Makaranta (New Term)"),
-    )
+    )# NEW TABLES - English Only
+if use_postgres():
+    db.execute("""CREATE TABLE IF NOT EXISTS exam_results (
+        id SERIAL PRIMARY KEY,
+        student_id INTEGER NOT NULL,
+        subject TEXT NOT NULL,
+        exam_type TEXT NOT NULL,
+        score REAL NOT NULL,
+        total REAL NOT NULL DEFAULT 100,
+        exam_date TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )""")
+    db.execute("""CREATE TABLE IF NOT EXISTS chat_channels (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )""")
+    db.execute("""CREATE TABLE IF NOT EXISTS chat_messages (
+        id SERIAL PRIMARY KEY,
+        channel_id INTEGER,
+        sender_id INTEGER NOT NULL,
+        receiver_id INTEGER,
+        message TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )""")
+    db.execute("""CREATE TABLE IF NOT EXISTS office_records (
+        id SERIAL PRIMARY KEY,
+        office_id INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        record_date TEXT,
+        created_by INTEGER,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )""")
+else:
+    db.execute("""CREATE TABLE IF NOT EXISTS exam_results (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_id INTEGER NOT NULL,
+        subject TEXT NOT NULL,
+        exam_type TEXT NOT NULL,
+        score REAL NOT NULL,
+        total REAL NOT NULL DEFAULT 100,
+        exam_date TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )""")
+    db.execute("""CREATE TABLE IF NOT EXISTS chat_channels (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        description TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )""")
+    db.execute("""CREATE TABLE IF NOT EXISTS chat_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        channel_id INTEGER,
+        sender_id INTEGER NOT NULL,
+        receiver_id INTEGER,
+        message TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )""")
+    db.execute("""CREATE TABLE IF NOT EXISTS office_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        office_id INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        record_date TEXT,
+        created_by INTEGER,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )""")
     for event in default_school_events:
         exists = db.execute(
             "SELECT id FROM school_events WHERE title=? AND event_date=? AND end_date=?",
@@ -1042,8 +1110,7 @@ def users():
           <fieldset class="choice-panel full"><legend>Subjects taught</legend><div class="choice-grid">{% for subject in subjects %}<label class="choice-option"><input type="checkbox" name="subjects" value="{{ subject }}">{{ subject }}</label>{% endfor %}</div></fieldset>
           <fieldset class="choice-panel full"><legend>Teaching days (Asabar to Laraba)</legend><div class="choice-grid">{% for weekday in weekdays %}<label class="choice-option"><input type="checkbox" name="weekdays" value="{{ weekday }}">{{ weekday }}</label>{% endfor %}</div></fieldset>
         </div><br><button>Save staff member</button></form></div><br>
-        <div class="card"><h2>Accounts</h2><table><thead><tr><th>Full name</th><th>Phone</th><th>School position</th><th>Access</th><th>Actions</th></tr></thead><tbody>{% for user in rows %}<tr><td>{{ user['full_name'] }}</td><td>{{ user['phone'] or '-' }}</td><td>{{ user['school_position'] or '-' }}</td><td>{{ user['role'] }}<td>{{ user['created_at'] }}</td><td><div class="actions">...Edit...Delete...</div></td></tr>{% endfor %}</tbody></table></div>if __name__ == "__main__":
-        """, "Staff & Admin", "users", rows=rows, class_names=CLASS_NAMES, subjects=SUBJECTS, weekdays=WEEKDAYS)
+        <div class="card"><h2>Accounts</h2><table><thead><tr><th>Full name</th><th>Phone</th><th>School position</th><th>Access</th><th>Actions</th></tr></thead><tbody>{% for user in rows %}<tr><td>{{ user['full_name'] }}</td><td>{{ user['phone'] or '-' }}</td><td>{{ user['school_position'] or '-' }}</td><td>{{ user['role'] }}<td>{{ user['created_at'] }}</td><td><div class="actions">{% if g.user['role']=='admin' %}<a class="button light" href="{{ url_for('user_edit', user_id=user['id']) }}">Edit</a><form method="post" action="{{ url_for('user_delete', user_id=user['id']) }}"><button class="danger" onclick="return confirm('Delete this staff?')">Delete</button></form>{% endif %}</div></td></tr>
 
 @app.route("/staff")
 @login_required

@@ -1400,7 +1400,7 @@ def school_calendar():
         <div class="calendar-legend">
           <span><i class="legend-dot" style="background:#2563eb;"></i>Today</span>
           <span><i class="legend-dot" style="background:#dc2626;"></i>Friday - School Closed</span>
-          <span><i class="legend-dot" style="background:#3b82f6;"></i>School days (Saturday–Wednesday)</span>
+       <span><i class="legend-dot" style="background:#3b82f6;"></i>School days (Saturday-Wednesday)</span>
         </div>
         <div class="calendar-grid">
           {% for weekday in ['Asabar','Lahadi','Litinin','Talata','Laraba','Alhamis',"Juma'a"] %}<div class="calendar-weekday">{{ weekday }}</div>{% endfor %}

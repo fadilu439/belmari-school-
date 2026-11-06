@@ -160,6 +160,225 @@ def init_db():
             """
         )
 
+    # New collaboration tables; existing school data and tables are preserved.
+    if use_postgres():
+        db.execute("""CREATE TABLE IF NOT EXISTS offices (
+            id SERIAL PRIMARY KEY, office_name TEXT UNIQUE NOT NULL,
+            leader TEXT NOT NULL DEFAULT 'To be assigned',
+            members TEXT NOT NULL DEFAULT 'To be assigned', duties TEXT NOT NULL
+        )""")
+        db.execute("""CREATE TABLE IF NOT EXISTS workplace_messages (
+            id SERIAL PRIMARY KEY, sender_id INTEGER NOT NULL REFERENCES users(id),
+            message TEXT NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )""")
+        db.execute("""CREATE TABLE IF NOT EXISTS tasks (
+            id SERIAL PRIMARY KEY, title TEXT NOT NULL, description TEXT,
+            assigned_to INTEGER REFERENCES users(id), due_date TEXT,
+            status TEXT NOT NULL DEFAULT 'Pending',
+            created_by INTEGER NOT NULL REFERENCES users(id),
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )""")
+    else:
+        db.execute("""CREATE TABLE IF NOT EXISTS offices (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, office_name TEXT UNIQUE NOT NULL,
+            leader TEXT NOT NULL DEFAULT 'To be assigned',
+            members TEXT NOT NULL DEFAULT 'To be assigned', duties TEXT NOT NULL
+        )""")
+        db.execute("""CREATE TABLE IF NOT EXISTS workplace_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, sender_id INTEGER NOT NULL,
+            message TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(sender_id) REFERENCES users(id)
+        )""")
+        db.execute("""CREATE TABLE IF NOT EXISTS tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, description TEXT,
+            assigned_to INTEGER, due_date TEXT, status TEXT NOT NULL DEFAULT 'Pending',
+            created_by INTEGER NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(assigned_to) REFERENCES users(id),
+            FOREIGN KEY(created_by) REFERENCES users(id)
+        )""")
+
+    # Remove only legacy built-in office names before seeding the school's
+    # definitive eight departments. Custom office records are left untouched.
+    previous_default_offices = (
+        "Administration Office",
+        "Academic Affairs Office",
+        "Qur'an & Islamic Studies Office",
+        "Student Affairs Office",
+        "Finance & Accounts Office",
+        "Staff Affairs Office",
+        "Welfare & Guidance Office",
+        "ICT & Communications Office",
+        "Admissions & Records Office",
+        "Examination Office",
+        "Public Relations Office (P.R.O)",
+        "Health Office",
+        "Custodian & School Property Office",
+        "Competition & Visits Office",
+        "Timetable & Curriculum Office",
+    )
+    placeholders = ",".join(["?"] * len(previous_default_offices))
+    db.execute(
+        f"DELETE FROM offices WHERE office_name IN ({placeholders})",
+        previous_default_offices,
+    )
+
+    default_offices = (
+        (
+            "Mai Kula da Harkar Jarrabawa (Examination Office)",
+            "M. Yahya Dahiru",
+            "M. Aliyu Abdullahi, M. Ismail Husaini, M. Shamsu Adam, M. Abdussamad Sunusi, M. Saifullahi Haruna",
+            "\n".join([
+                "Tattara manhaja (syllabus) daga kowane malami kafin a shirya tambayoyi",
+                "Raba format (yadda questions za su kasance) na tambayoyi ga malaman",
+                "Karɓar tambayoyi da gyara su (moderation) da tabbatar da sun dace da ajin",
+                "Buga tambayoyi da kiyaye sirri 100%",
+                "Tsara jadawalin jarabawa (Exam Time Table)",
+                "Tsara wurin zama (Seating Arrangement) na dalibai",
+                "Shirya takardun amsa (Answer Sheets) da suka isa",
+                "Raba masu tsaron jarabawa (Invigilators) kowace rana",
+                "Buɗe tambayoyi a ɗakin jarrabawa a gaban dalibai",
+                "Ɗaukar attendance na daliban da suka shiga jarabawa",
+                "Tattarawa da ƙirga dukkan Scripts bayan kowace jarabawa",
+                "Raba Scripts ga malaman don marking da bibiyar su har su dawo (da su)",
+                "Karɓar sakamako, shigar da shi a Broadsheet / Computer",
+                "Bincika sakamako da fitar da Report Sheet",
+                "Kiyaye tsofaffin sakamako a file na sirri",
+                "Rubuta rahoton duk wani magudi (Malpractice) da aka samu",
+            ]),
+        ),
+        (
+            "Mai Kula da Harkokin Dalibai (Student Affairs Office)",
+            "M. Sadik Inuwa",
+            "M. Shamsu Adam",
+            "\n".join([
+                "Kula da ladabi, halaye, da mutunci na dalibai",
+                "Tabbatar da kowa na sanya uniform na makaranta yadda ya kamata",
+                "Kula da attendance na yau da kullum: waye ya zo, waye bai zo ba",
+                "Karɓar korafe-korafe da warware rikici tsakanin dalibai",
+                "Ba da gargadi da horo ga daliban da suka karya doka",
+                "Kula da lokacin shigowa da fita makaranta",
+                "Tura rahoton dalibai masu yawan laifi zuwa Management",
+            ]),
+        ),
+        (
+            "Magatakarda da Mai Ɗaukar Dalibai (Admissions & Registrar Office)",
+            "M. Saifullahi Haruna",
+            "Ml. Hafsa Auwal",
+            "\n".join([
+                "Bayarwa da karɓar Admission Forms",
+                "Yi wa sabbin dalibai interview da tantancewa",
+                "Yi musu registration da ba su lambar makaranta (Admission No.)",
+                "Buɗe file ga kowane dalibi da kiyaye takardunsa (hoto, birth certificate)",
+                "Kula da Register kuɗin makaranta tare da Finance",
+                "Tura cikakken jerin sunayen sabbin dalibai zuwa Office Jarrabawa / Office Timetable da manhaji",
+                "Kula da daliban da suka bar makaranta (Transfer) da bayar da takarda",
+                "Kiyaye babban littafin ɗaukar dalibai (Admission Register)",
+            ]),
+        ),
+        (
+            "Jami’in Hulɗa da Jama’a (P.R.O)",
+            "Ml. Khadija Hassan",
+            "M. Muhammad Aliyu",
+            "\n".join([
+                "Karɓar duk wani bako da ya ziyarci makaranta da girmamawa",
+                "Zama mai magana da yawun makaranta a waje",
+                "Hulɗa da iyayen dalibai: kira da sanarwa",
+                "Rubuta dukkan sanarwa (Announcements) da gayyata (Invitations)",
+                "Hulɗa da ƙungiyar SABOSA (Tsofaffin Dalibai)",
+                "Shirya ranakun walima, yaye dalibai, da tarurruka na musamman",
+            ]),
+        ),
+        (
+            "Mai Kula da Rashin Lafiyar Dalibai (Health Office)",
+            "Ml. Maryam Sulaiman",
+            "Not specified",
+            "\n".join([
+                "Kula da daliban da ba su da lafiya a cikin makaranta",
+                "Kula da First Aid Box - tabbatar da magunguna na ciki",
+                "Kula da tsaftar bandaki, ruwan sha, da wajen wanke hannu",
+                "Kira ga iyaye idan dalibi ya yi rashin lafiya mai tsanani",
+                "Ba da shawara kan tsaftar jiki da muhalli ga dalibai mata",
+                "Rubuta sunayen daliban da suka yi rashin lafiya da rana",
+                "Tabbatar da ajujuwa na da iska da tsafta domin hana yaɗuwar cuta",
+            ]),
+        ),
+        (
+            "Mai Kula da Tsaftar Makaranta da Kayan Makaranta (Custodian Office)",
+            "M. Saifullahi Haruna",
+            "Ml. Hafsa Auwal, Ml. Asama'u Hassan, M. Abdussamad Sunusi, M. Muhammad Aliyu, Ml. Salama Yahuza, Ml. Halima Aliyu",
+            "\n".join([
+                "Tsara jadawalin tsaftace ajujuwa da harabar makaranta kowace rana",
+                "Kula da tabarmi, kujeru, allo, ƙofofi, da tagogi - idan sun lalace a kai rahoto",
+                "Kula da buɗewa da rufe makaranta akan lokaci",
+                "Kula da wutar lantarki, fanfo, da fitilu",
+                "Raba Marker / alli, goge allo, da kayan aiki ga malaman",
+                "Kula da kayan makaranta a store - shiga da fita",
+                "Tabbatar da babu datti a bayan aji da cikin bandaki",
+            ]),
+        ),
+        (
+            "Tsara Musabaka da Ziyarta (Competition & Visits Office)",
+            "M. Shamsu Adam",
+            "M. Ismail Husaini, Ml. Salama Yahuza, Ml. Hauwa'u Sa'id",
+            "\n".join([
+                "Tsara musabaka na ciki tsakanin ajujuwa",
+                "Zaɓar daliban da za su wakilci makaranta a musabakar waje",
+                "Horar da daliban da za su yi gasa na musamman",
+                "Tsarawa da shirya ziyarce-ziyarce zuwa wasu makarantu ko wurare masu amfani",
+                "Rubuta wasiku na neman izinin ziyara",
+                "Kula da kyaututtuka, certificate, da kayan musabaka",
+                "Rubuta rahoton kowace musabaka da ziyara da aka yi",
+            ]),
+        ),
+        (
+            "Tsara Time Table da Manhaja (Curriculum Office)",
+            "M. Aliyu Abdullahi",
+            "M. Sadik Inuwa, M. Shamsu Adam, M. Saifullahi Haruna, M. Abdussamad Sunusi, Ml. Hauwa'u Yusuf, Ml. Halima Aliyu, M. Yahya Dahiru",
+            "\n".join([
+                "Tsara babban Time Table na makaranta na kowace term",
+                "Raba darussa ga malaman bisa ga ƙwarewa",
+                "Tsara manhaja (Curriculum / Scheme of Work) ta kowane aji",
+                "Tabbatar da kowane aji na da malami a kowane lokaci",
+                "Canza time table na rana idan wani malami bai zo ba (Relief)",
+                "Rubutawa da raba dukkan Circulars da dokoki ga malaman",
+                "Kula da littafan koyarwa (Lesson Notes) na malaman - ana duba su?",
+                "Bincikawa ko malaman na tafiya daidai da manhaja",
+            ]),
+        ),
+    )
+
+    # Update the previous abbreviated built-in descriptions once, while keeping
+    # any later administrator-edited office records intact.
+    old_duties = {
+        "Examination Office": "Prepare and print exam questions, Prepare exam timetable, Assign invigilators, Collect answer scripts, Enter results and issue results, Keep exam questions confidential.",
+        "Student Affairs Office": "Student discipline and character, Receive student complaints, Resolve disputes between students, Monitor student attendance, Ensure students wear correct school uniform.",
+        "Admissions & Records Office": "Receive new students and register them, Keep student files and documents, Issue admission form and school fees list, Send names of new students to Examination Office.",
+        "Public Relations Office (P.R.O)": "Receive visitors, Promote the school outside, Relate with parents, Write announcements and invitations.",
+        "Health Office": "Care for sick students, Manage first aid box, Inform parents if illness is serious, Care for toilet and drinking water cleanliness, Advise on environmental cleanliness.",
+        "Custodian & School Property Office": "Cleanliness of classes and school compound, Care for mats, chairs, boards and class materials, Open and close school, Care for electricity and water, Distribute working materials to teachers.",
+        "Competition & Visits Office": "Organize competitions inside school, Prepare students for inter-school competitions, Organize visits to other schools, Train competing students, Manage competition prizes.",
+        "Timetable & Curriculum Office": "Prepare daily timetable, Prepare curriculum for each class, Write and distribute circulars to teachers, Change timetable if a teacher is absent, Ensure every class has a teacher on time.",
+    }
+    for office_name, leader, members, duties in default_offices:
+        existing = db.execute("SELECT id, duties FROM offices WHERE office_name=?", (office_name,)).fetchone()
+        if existing is None:
+            if use_postgres():
+                db.execute(
+                    "INSERT INTO offices (office_name, leader, members, duties) VALUES (%s, %s, %s, %s) ON CONFLICT (office_name) DO NOTHING",
+                    (office_name, leader, members, duties),
+                )
+            else:
+                db.execute(
+                    "INSERT OR IGNORE INTO offices (office_name, leader, members, duties) VALUES (?, ?, ?, ?)",
+                    (office_name, leader, members, duties),
+                )
+        elif existing["duties"] == old_duties.get(office_name):
+            db.execute(
+                "UPDATE offices SET leader=?, members=?, duties=? WHERE id=?",
+                (leader, members, duties, existing["id"]),
+            )
+
+
     profile_columns = {
         "phone": "TEXT",
         "school_position": "TEXT",
@@ -463,6 +682,20 @@ BASE_HTML = """
       font-size: 14px;
       margin-bottom: 18px;
     }
+    .office-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:18px; }
+    .office-card { border-top:4px solid var(--accent); }
+    .office-card h2 { margin-bottom:14px; }
+    .office-duties { margin-top:14px; }
+    .office-duties ol { margin:10px 0 0; padding-left:24px; }
+    .office-duties li { margin:0 0 9px; line-height:1.65; padding-left:3px; }
+    .chat-window { max-height:520px; overflow-y:auto; display:flex; flex-direction:column; gap:12px; }
+    .chat-message { padding:13px 16px; border:1px solid var(--border); border-radius:14px; background:#f8fbff; }
+    .chat-message.mine { background:var(--primary-soft); border-color:#b8d1fa; }
+    .chat-meta { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; font-size:12px; color:var(--muted); margin-bottom:5px; }
+    .task-status { display:inline-block; padding:5px 10px; border-radius:20px; background:var(--primary-soft); color:var(--primary-dark); font-size:12px; font-weight:700; }
+    .task-status.done { background:#e6f7ed; color:#17663a; }
+    .task-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+    @media(max-width:620px) { .task-form { grid-template-columns:1fr; } }
     @media(max-width:900px) { aside { width:210px; }.grid { grid-template-columns:repeat(2,1fr); } main { padding:20px; } }
     @media(max-width:620px) {.layout { display:block; } aside { width:100%; padding:12px; } nav { display:flex; overflow:auto; gap:4px; } nav a { white-space:nowrap; }.grid,.form-grid { grid-template-columns:1fr; } main { padding:15px; }.topbar { align-items:flex-start; flex-direction:column; } table { min-width:850px; } }
   </style>
@@ -475,6 +708,9 @@ BASE_HTML = """
     <a href="{{ url_for('staff_directory') }}" class="{{ 'active' if page == 'staff' else '' }}">Staff directory</a>
     <a href="{{ url_for('announcements') }}" class="{{ 'active' if page == 'announcements' else '' }}">Announcements</a>
     {% if g.user['role'] == 'admin' %}<a href="{{ url_for('users') }}" class="{{ 'active' if page == 'users' else '' }}">Staff &amp; Admin</a>{% endif %}
+    <a href="{{ url_for('offices') }}" class="{{ 'active' if page == 'offices' else '' }}">Offices</a>
+    <a href="{{ url_for('workplace_chat') }}" class="{{ 'active' if page == 'workplace_chat' else '' }}">Workplace Chat</a>
+    <a href="{{ url_for('tasks') }}" class="{{ 'active' if page == 'tasks' else '' }}">Tasks</a>
     <a href="{{ url_for('logout') }}">Log out</a>
 </nav></aside><main>
 {% else %}<div class="login-page"><div class="login-box">{% endif %}
@@ -783,6 +1019,181 @@ def staff_directory():
           <p><strong>Days:</strong> {{ member['weekdays']|join(', ') or 'None listed' }}</p>
         </article>{% else %}<div class="card">No staff profiles have been registered yet.</div>{% endfor %}</div>
         """, "Staff directory", "staff", staff_members=staff_members)
+
+
+
+@app.route("/offices", methods=("GET", "POST"))
+@login_required
+def offices():
+    db = get_db()
+    if request.method == "POST":
+        if g.user["role"] != "admin":
+            flash("Only an administrator can edit office information.", "error")
+            return redirect(url_for("offices"))
+        office_id = request.form.get("office_id", "").strip()
+        leader = request.form.get("leader", "").strip()
+        members = request.form.get("members", "").strip()
+        duties = request.form.get("duties", "").strip()
+        if office_id.isdigit() and leader and members and duties:
+            db.execute("UPDATE offices SET leader=?, members=?, duties=? WHERE id=?",
+                       (leader, members, duties, int(office_id)))
+            db.commit()
+            flash("Office information updated successfully.")
+        else:
+            flash("Complete all office fields before saving.", "error")
+        return redirect(url_for("offices"))
+
+    rows = db.execute("SELECT * FROM offices ORDER BY id").fetchall()
+    return page("""
+      <div class="topbar"><div><h1>School Offices</h1><p class="muted">Eight offices supporting the daily work of Belmari School.</p></div></div>
+      <div class="office-grid">
+      {% for office in rows %}
+        <article class="card office-card">
+          <h2>{{ office['office_name'] }}</h2>
+          <p><strong>Shugaba / Leader</strong><br>{{ office['leader'] }}</p>
+          <p><strong>Membobi / Members</strong><br>{{ office['members'] }}</p>
+          <div class="office-duties"><strong>Ayyuka dalla-dalla / Detailed Duties</strong>
+            <ol>{% for duty in office['duties'].split('\n') %}{% if duty.strip() %}<li>{{ duty }}</li>{% endif %}{% endfor %}</ol>
+          </div>
+          {% if g.user['role'] == 'admin' %}
+          <details><summary class="button light">Edit office details</summary>
+            <form method="post" style="margin-top:14px;">
+              <input type="hidden" name="office_id" value="{{ office['id'] }}">
+              <div class="field"><label>Leader</label><input name="leader" value="{{ office['leader'] }}" required></div><br>
+              <div class="field"><label>Members (separate names with commas)</label><textarea name="members" required>{{ office['members'] }}</textarea></div><br>
+              <div class="field"><label>Duties</label><textarea name="duties" required>{{ office['duties'] }}</textarea></div><br>
+              <button>Save office</button>
+            </form>
+          </details>
+          {% endif %}
+        </article>
+      {% else %}<div class="card">No offices are available.</div>{% endfor %}
+      </div>
+      {% if g.user['role'] != 'admin' %}<p class="muted">Contact an administrator if office information needs to be changed.</p>{% endif %}
+    """, "Offices", "offices", rows=rows)
+
+
+@app.route("/workplace-chat", methods=("GET", "POST"))
+@login_required
+def workplace_chat():
+    db = get_db()
+    if request.method == "POST":
+        message = request.form.get("message", "").strip()
+        if message:
+            db.execute("INSERT INTO workplace_messages (sender_id, message) VALUES (?, ?)",
+                       (g.user["id"], message[:2000]))
+            db.commit()
+        else:
+            flash("Write a message before sending.", "error")
+        return redirect(url_for("workplace_chat"))
+
+    messages = db.execute(
+        """SELECT workplace_messages.*, users.full_name AS sender_name
+           FROM workplace_messages JOIN users ON users.id=workplace_messages.sender_id
+           ORDER BY workplace_messages.id DESC LIMIT 100"""
+    ).fetchall()
+    messages = list(reversed(messages))
+    return page("""
+      <div class="topbar"><div><h1>Workplace Chat</h1><p class="muted">Share work-related messages with signed-in school staff.</p></div></div>
+      <div class="card">
+        <div class="chat-window" id="chat-window">
+        {% for item in messages %}
+          <div class="chat-message {{ 'mine' if item['sender_id'] == g.user['id'] else '' }}">
+            <div class="chat-meta"><strong>{{ item['sender_name'] }}</strong><span>{{ item['created_at'] }}</span></div>
+            <div style="white-space:pre-wrap; overflow-wrap:anywhere;">{{ item['message'] }}</div>
+          </div>
+        {% else %}<p class="muted">No messages yet. Start the school conversation.</p>{% endfor %}
+        </div>
+        <form method="post" style="margin-top:18px;">
+          <label for="message"><strong>Your message</strong></label>
+          <textarea id="message" name="message" maxlength="2000" placeholder="Write a message to your colleagues..." required></textarea><br>
+          <button type="submit">Send message</button>
+        </form>
+      </div>
+      <script>const chatWindow=document.getElementById('chat-window'); if(chatWindow){chatWindow.scrollTop=chatWindow.scrollHeight;}</script>
+    """, "Workplace Chat", "workplace_chat", messages=messages)
+
+
+@app.route("/tasks", methods=("GET", "POST"))
+@login_required
+def tasks():
+    db = get_db()
+    if request.method == "POST":
+        title = request.form.get("title", "").strip()
+        description = request.form.get("description", "").strip()
+        assigned_raw = request.form.get("assigned_to", "").strip()
+        due_date = request.form.get("due_date", "").strip()
+        assigned_to = int(assigned_raw) if assigned_raw.isdigit() else None
+        valid_assignee = assigned_to is None or db.execute(
+            "SELECT id FROM users WHERE id=?", (assigned_to,)
+        ).fetchone() is not None
+        if not title or not valid_assignee:
+            flash("Enter a task title and select a valid staff member.", "error")
+        else:
+            db.execute(
+                """INSERT INTO tasks (title, description, assigned_to, due_date, status, created_by)
+                   VALUES (?, ?, ?, ?, 'Pending', ?)""",
+                (title, description, assigned_to, due_date or None, g.user["id"]),
+            )
+            db.commit()
+            flash("Task created successfully.")
+            return redirect(url_for("tasks"))
+
+    staff = db.execute("SELECT id, full_name FROM users ORDER BY full_name").fetchall()
+    rows = db.execute(
+        """SELECT tasks.*, assignee.full_name AS assignee_name, creator.full_name AS creator_name
+           FROM tasks LEFT JOIN users AS assignee ON assignee.id=tasks.assigned_to
+           JOIN users AS creator ON creator.id=tasks.created_by
+           ORDER BY CASE tasks.status WHEN 'Pending' THEN 0 WHEN 'In Progress' THEN 1 ELSE 2 END,
+                    tasks.id DESC"""
+    ).fetchall()
+    return page("""
+      <div class="topbar"><div><h1>Tasks</h1><p class="muted">Create tasks, assign responsibilities, and track progress.</p></div></div>
+      <div class="card"><h2>Create a task</h2>
+        <form method="post" class="task-form">
+          <div class="field"><label>Task title *</label><input name="title" maxlength="180" required></div>
+          <div class="field"><label>Assign to</label><select name="assigned_to"><option value="">Unassigned</option>{% for person in staff %}<option value="{{ person['id'] }}">{{ person['full_name'] }}</option>{% endfor %}</select></div>
+          <div class="field"><label>Due date</label><input type="date" name="due_date"></div>
+          <div class="field full"><label>Description</label><textarea name="description" placeholder="Describe the task and expected outcome..."></textarea></div>
+          <div class="field full"><button type="submit">Create task</button></div>
+        </form>
+      </div><br>
+      <div class="card"><h2>Task board</h2>
+        {% for task in rows %}
+        <article class="announcement card" style="margin-bottom:14px;">
+          <div class="topbar"><div><h3>{{ task['title'] }}</h3><span class="task-status {{ 'done' if task['status'] == 'Completed' else '' }}">{{ task['status'] }}</span></div>
+            <form method="post" action="{{ url_for('task_status', task_id=task['id']) }}" style="min-width:160px;">
+              <label class="muted">Update status</label>
+              <select name="status" onchange="this.form.submit()">
+                {% for state in ['Pending', 'In Progress', 'Completed'] %}<option value="{{ state }}" {{ 'selected' if task['status'] == state else '' }}>{{ state }}</option>{% endfor %}
+              </select>
+            </form>
+          </div>
+          <p>{{ task['description'] or 'No description provided.' }}</p>
+          <p class="muted"><strong>Assigned to:</strong> {{ task['assignee_name'] or 'Unassigned' }} | <strong>Created by:</strong> {{ task['creator_name'] }} | <strong>Due:</strong> {{ task['due_date'] or 'Not set' }}</p>
+        </article>
+        {% else %}<p class="muted">There are no tasks yet.</p>{% endfor %}
+      </div>
+    """, "Tasks", "tasks", rows=rows, staff=staff)
+
+
+@app.post("/tasks/<int:task_id>/status")
+@login_required
+def task_status(task_id):
+    status = request.form.get("status", "")
+    if status not in ("Pending", "In Progress", "Completed"):
+        flash("Choose a valid task status.", "error")
+    else:
+        db = get_db()
+        exists = db.execute("SELECT id FROM tasks WHERE id=?", (task_id,)).fetchone()
+        if exists:
+            db.execute("UPDATE tasks SET status=? WHERE id=?", (status, task_id))
+            db.commit()
+            flash("Task status updated.")
+        else:
+            flash("Task not found.", "error")
+    return redirect(url_for("tasks"))
+
 
 if __name__ == "__main__":
     app.run(debug=True)

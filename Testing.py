@@ -1395,7 +1395,7 @@ def school_calendar():
         <div class="calendar-toolbar">
 <a class="button light" href="{{ url_for('school_calendar', year=previous_year, month=previous_month) }}"><< Previous Month</a>
           <h2 style="margin:0;">{{ month_name }} {{ year }}</h2>
-          <a class="button light" href="{{ url_for('school_calendar', year=next_year, month=next_month) }}">Next Month →</a>
+    <a class="button light" href="{{ url_for('school_calendar', year=next_year, month=next_month) }}">Next Month >></a>
         </div>
         <div class="calendar-legend">
           <span><i class="legend-dot" style="background:#2563eb;"></i>Today</span>

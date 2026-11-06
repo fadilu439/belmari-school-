@@ -1111,6 +1111,8 @@ def users():
           <fieldset class="choice-panel full"><legend>Teaching days (Asabar to Laraba)</legend><div class="choice-grid">{% for weekday in weekdays %}<label class="choice-option"><input type="checkbox" name="weekdays" value="{{ weekday }}">{{ weekday }}</label>{% endfor %}</div></fieldset>
         </div><br><button>Save staff member</button></form></div><br>
         <div class="card"><h2>Accounts</h2><table><thead><tr><th>Full name</th><th>Phone</th><th>School position</th><th>Access</th><th>Actions</th></tr></thead><tbody>{% for user in rows %}<tr><td>{{ user['full_name'] }}</td><td>{{ user['phone'] or '-' }}</td><td>{{ user['school_position'] or '-' }}</td><td>{{ user['role'] }}<td>{{ user['created_at'] }}</td><td><div class="actions">{% if g.user['role']=='admin' %}<a class="button light" href="{{ url_for('user_edit', user_id=user['id']) }}">Edit</a><form method="post" action="{{ url_for('user_delete', user_id=user['id']) }}"><button class="danger" onclick="return confirm('Delete this staff?')">Delete</button></form>{% endif %}</div></td></tr>
+{% endfor %}</tbody></table></div>
+""", "Staff & Admin", "users", rows=rows)
 
 @app.route("/staff")
 @login_required

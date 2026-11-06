@@ -1496,7 +1496,7 @@ def school_event_delete(event_id):
     return redirect(url_for("school_calendar"))
 
 
-SCHOOSCHOOL_EVENT_FORM = """
+SCHOOL_EVENT_FORM = """
 <div class="topbar"><div><h1>{{ form_title }}</h1><p class="muted">Add or update a school event</p></div></div>
 <div class="card"><form method="post" class="event-form">
 <div class="field"><label>Title</label><input type="text" name="title" maxlength="120" value="{{ event_title }}" required></div>

@@ -1,6 +1,8 @@
 import os
 import json
 import sqlite3
+import calendar
+from datetime import date, datetime, timedelta
 from functools import wraps
 
 from flask import Flask, flash, g, redirect, render_template_string, request, session, url_for
@@ -196,6 +198,41 @@ def init_db():
             FOREIGN KEY(assigned_to) REFERENCES users(id),
             FOREIGN KEY(created_by) REFERENCES users(id)
         )""")
+
+    # School calendar is additive: it does not alter existing school tables.
+    if use_postgres():
+        db.execute("""CREATE TABLE IF NOT EXISTS school_events (
+            id SERIAL PRIMARY KEY, title TEXT NOT NULL, event_date TEXT NOT NULL,
+            end_date TEXT, event_type TEXT NOT NULL DEFAULT 'General', description TEXT
+        )""")
+    else:
+        db.execute("""CREATE TABLE IF NOT EXISTS school_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, event_date TEXT NOT NULL,
+            end_date TEXT, event_type TEXT NOT NULL DEFAULT 'General', description TEXT
+        )""")
+
+    default_school_events = (
+        ("Dawowa Makaranta", "2026-09-05", "2026-09-05", "Term Opening", "Asabar - Dawowa Makaranta"),
+        ("Assembly", "2026-09-06", "2026-09-06", "Assembly", "Lahadi - Assembly"),
+        ("Cigaba da karatu", "2026-09-13", "2026-09-13", "Academic", "Lahadi - Cigaba da karatu"),
+        ("Lecture", "2026-10-25", "2026-10-25", "Academic", "Lahadi - Lecture"),
+        ("Cigaba da karatu", "2026-10-31", "2026-10-31", "Academic", "Asabar - Cigaba da karatu"),
+        ("Lecture", "2026-12-06", "2026-12-06", "Academic", "Lahadi - Lecture"),
+        ("Revision", "2026-12-12", "2026-12-16", "Revision", "Revision period"),
+        ("Nishadat (Wasanni)", "2026-12-19", "2026-12-22", "Sports", "Nishadat (Wasanni)"),
+        ("Rufe Makaranta / Walima", "2026-12-23", "2026-12-23", "School Closing", "Laraba - Rufe Makaranta / Walima"),
+        ("Dawowa Makaranta (New Term)", "2027-01-02", "2027-01-02", "Term Opening", "Asabar - Dawowa Makaranta (New Term)"),
+    )
+    for event in default_school_events:
+        exists = db.execute(
+            "SELECT id FROM school_events WHERE title=? AND event_date=? AND end_date=?",
+            (event[0], event[1], event[2]),
+        ).fetchone()
+        if exists is None:
+            db.execute(
+                "INSERT INTO school_events (title, event_date, end_date, event_type, description) VALUES (?, ?, ?, ?, ?)",
+                event,
+            )
 
     # Remove only legacy built-in office names before seeding the school's
     # definitive eight departments. Custom office records are left untouched.
@@ -682,6 +719,23 @@ BASE_HTML = """
       font-size: 14px;
       margin-bottom: 18px;
     }
+    .calendar-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
+    .calendar-grid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:7px; }
+    .calendar-weekday { text-align:center; font-weight:800; color:var(--primary-dark); padding:10px 3px; background:#edf4ff; border-radius:10px; font-size:13px; }
+    .calendar-day { min-height:118px; padding:9px; border:1px solid var(--border); border-radius:12px; background:#fff; overflow-wrap:anywhere; }
+    .calendar-day.empty { background:transparent; border:1px dashed #dce7f7; }
+    .calendar-day.today { border:2px solid #2563eb; background:#e8f1ff; box-shadow:0 0 0 2px rgba(37,99,235,.08); }
+    .calendar-day.closed { background:#fff0f0; border-color:#efaaaa; }
+    .calendar-day.school-day { border-top:3px solid #3b82f6; }
+    .day-number { font-weight:900; color:var(--primary-dark); display:flex; justify-content:space-between; gap:4px; }
+    .today-label { color:#1d4ed8; font-size:10px; font-weight:800; }
+    .closed-label { color:#b42318; font-size:10px; font-weight:800; }
+    .calendar-event { display:block; margin-top:6px; padding:5px 6px; border-radius:7px; background:#eaf2ff; color:#123b82; font-size:11px; line-height:1.3; }
+    .calendar-event.range { background:#f0eaff; color:#56358b; }
+    .calendar-legend { display:flex; flex-wrap:wrap; gap:12px; margin:14px 0; color:var(--muted); font-size:13px; }
+    .legend-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; }
+    .event-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+    @media(max-width:700px) { .calendar-day { min-height:92px; padding:5px; font-size:12px; } .calendar-weekday { font-size:10px; padding:7px 1px; } .calendar-event { font-size:9px; padding:4px; } .event-form { grid-template-columns:1fr; } }
     .office-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:18px; }
     .office-card { border-top:4px solid var(--accent); }
     .office-card h2 { margin-bottom:14px; }
@@ -707,6 +761,7 @@ BASE_HTML = """
         <a href="{{ url_for('classes') }}" class="{{ 'active' if page == 'classes' else '' }}">Classes</a>
     <a href="{{ url_for('staff_directory') }}" class="{{ 'active' if page == 'staff' else '' }}">Staff directory</a>
     <a href="{{ url_for('announcements') }}" class="{{ 'active' if page == 'announcements' else '' }}">Announcements</a>
+    <a href="{{ url_for('school_calendar') }}" class="{{ 'active' if page == 'school_calendar' else '' }}">School Calendar</a>
     {% if g.user['role'] == 'admin' %}<a href="{{ url_for('users') }}" class="{{ 'active' if page == 'users' else '' }}">Staff &amp; Admin</a>{% endif %}
     <a href="{{ url_for('offices') }}" class="{{ 'active' if page == 'offices' else '' }}">Offices</a>
     <a href="{{ url_for('workplace_chat') }}" class="{{ 'active' if page == 'workplace_chat' else '' }}">Workplace Chat</a>
@@ -769,13 +824,16 @@ def dashboard():
              "announcements": db.execute("SELECT COUNT(*) FROM announcements").fetchone()[0],
              "new_students": db.execute(new_students_sql).fetchone()[0]}
     latest = db.execute("SELECT * FROM announcements ORDER BY id DESC LIMIT 3").fetchall()
+    walima_date = date(2026, 12, 23)
+    walima_days = (walima_date - date.today()).days
     return page("""
     <div class="topbar"><div><h1>Dashboard</h1><p class="muted">School performance overview</p></div><a class="button" href="{{ url_for('student_new') }}">+ Add student</a></div>
     <div class="grid">{% for label, value in [('Active students', stats.students), ('Staff members', stats.staff), ('Announcements', stats.announcements), ('New students (30 days)', stats.new_students)] %}<div class="card stat"><span class="muted">{{ label }}</span><strong>{{ value }}</strong></div>{% endfor %}</div>
+    <div class="card" style="margin-bottom:24px; border-left:5px solid #2563eb;"><span class="muted">Countdown to Walima / Rufe Makaranta</span><div style="font-size:30px;font-weight:900;color:#0b3fa6;margin-top:5px;">{% if walima_days > 0 %}{{ walima_days }} days remaining{% elif walima_days == 0 %}Today is Walima{% else %}Walima date has passed{% endif %}</div><p class="muted" style="margin-bottom:0;">Wednesday, 23 December 2026</p><a class="button light" style="margin-top:12px;" href="{{ url_for('school_calendar', year=2026, month=12) }}">Open School Calendar</a></div>
     <a class="card" href="{{ url_for('classes') }}" style="display:block; margin-bottom:24px;"><h2>Classes and student lists</h2><p class="muted">Browse students grouped by class.</p><span class="button">View classes</span></a>
     <a class="card" href="{{ url_for('staff_directory') }}" style="display:block; margin-bottom:24px;"><h2>Staff directory</h2><p class="muted">View staff contact, role, classes, subjects, and days.</p><span class="button">View staff</span></a>
     <div class="card"><h2>Latest announcements</h2>{% for item in latest %}<div class="announcement"><h3>{{ item['title'] }}</h3><p>{{ item['body'] }}</p><small class="muted">{{ item['created_at'] }}</small></div>{% else %}<p class="muted">No announcements yet.</p>{% endfor %}</div>
-    """, "Dashboard", "dashboard", stats=stats, latest=latest)
+    """, "Dashboard", "dashboard", stats=stats, latest=latest, walima_days=walima_days)
 
 @app.route("/students")
 @login_required
@@ -1193,6 +1251,195 @@ def task_status(task_id):
         else:
             flash("Task not found.", "error")
     return redirect(url_for("tasks"))
+
+
+
+@app.route("/school-calendar", methods=("GET", "POST"))
+@login_required
+def school_calendar():
+    today = date.today()
+    try:
+        year = int(request.args.get("year", today.year))
+        month = int(request.args.get("month", today.month))
+        if year < 2000 or year > 2100 or month < 1 or month > 12:
+            raise ValueError
+    except (TypeError, ValueError):
+        year, month = today.year, today.month
+
+    month_start = date(year, month, 1)
+    if month == 12:
+        month_end = date(year + 1, 1, 1)
+    else:
+        month_end = date(year, month + 1, 1)
+    events = get_db().execute(
+        """SELECT * FROM school_events
+           WHERE event_date < ? AND COALESCE(end_date, event_date) >= ?
+           ORDER BY event_date, id""",
+        (month_end.isoformat(), month_start.isoformat()),
+    ).fetchall()
+    all_events = get_db().execute("SELECT * FROM school_events ORDER BY event_date, id").fetchall()
+
+    event_days = {}
+    for event in events:
+        start = date.fromisoformat(event["event_date"])
+        finish = date.fromisoformat(event["end_date"] or event["event_date"])
+        current = max(start, month_start)
+        last = min(finish, date(year, month, calendar.monthrange(year, month)[1]))
+        while current <= last:
+            event_days.setdefault(current.day, []).append({
+                "title": event["title"],
+                "event_type": event["event_type"],
+                "is_range": start != finish,
+            })
+            current += timedelta(days=1)
+
+    month_calendar = calendar.Calendar(firstweekday=5)  # Saturday first
+    weeks = month_calendar.monthdayscalendar(year, month)
+    calendar_cells = []
+    for week in weeks:
+        row = []
+        for weekday_index, day_number in enumerate(week):
+            if not day_number:
+                row.append(None)
+                continue
+            current_date = date(year, month, day_number)
+            row.append({
+                "day": day_number,
+                "is_today": current_date == today,
+                "is_closed": weekday_index == 6,
+                "is_school_day": weekday_index <= 4,
+                "events": event_days.get(day_number, []),
+            })
+        calendar_cells.append(row)
+
+    previous_month = month - 1
+    previous_year = year
+    if previous_month == 0:
+        previous_month, previous_year = 12, year - 1
+    next_month = month + 1
+    next_year = year
+    if next_month == 13:
+        next_month, next_year = 1, year + 1
+
+    return page("""
+      <div class="topbar"><div><h1>School Calendar</h1><p class="muted">Jadawalin makaranta, ranakun karatu, hutu da muhimman abubuwa.</p></div>
+      {% if g.user['role'] == 'admin' %}<a class="button" href="{{ url_for('school_event_new') }}">+ Add event</a>{% endif %}</div>
+      <div class="card">
+        <div class="calendar-toolbar">
+          <a class="button light" href="{{ url_for('school_calendar', year=previous_year, month=previous_month) }}">← Previous Month</a>
+          <h2 style="margin:0;">{{ month_name }} {{ year }}</h2>
+          <a class="button light" href="{{ url_for('school_calendar', year=next_year, month=next_month) }}">Next Month →</a>
+        </div>
+        <div class="calendar-legend">
+          <span><i class="legend-dot" style="background:#2563eb;"></i>Today</span>
+          <span><i class="legend-dot" style="background:#dc2626;"></i>Friday - School Closed</span>
+          <span><i class="legend-dot" style="background:#3b82f6;"></i>School days (Saturday–Wednesday)</span>
+        </div>
+        <div class="calendar-grid">
+          {% for weekday in ['Asabar','Lahadi','Litinin','Talata','Laraba','Alhamis',"Juma'a"] %}<div class="calendar-weekday">{{ weekday }}</div>{% endfor %}
+          {% for week in weeks %}{% for cell in week %}
+            {% if cell %}<div class="calendar-day {{ 'today' if cell.is_today else ('closed' if cell.is_closed else ('school-day' if cell.is_school_day else '')) }}">
+              <div class="day-number"><span>{{ cell.day }}</span>{% if cell.is_today %}<span class="today-label">TODAY</span>{% elif cell.is_closed %}<span class="closed-label">CLOSED</span>{% endif %}</div>
+              {% for event in cell.events %}<span class="calendar-event {{ 'range' if event.is_range else '' }}">{{ event.title }}</span>{% endfor %}
+            </div>{% else %}<div class="calendar-day empty"></div>{% endif %}
+          {% endfor %}{% endfor %}
+        </div>
+      </div>
+      <div class="card" style="margin-top:22px;"><h2>Events / Abubuwan da aka tsara</h2>
+        <div style="overflow-x:auto;"><table><thead><tr><th>Event</th><th>Date</th><th>Type</th><th>Description</th>{% if g.user['role'] == 'admin' %}<th>Actions</th>{% endif %}</tr></thead><tbody>
+        {% for event in all_events %}<tr><td><strong>{{ event['title'] }}</strong></td><td>{{ event['event_date'] }}{% if event['end_date'] and event['end_date'] != event['event_date'] %} to {{ event['end_date'] }}{% endif %}</td><td>{{ event['event_type'] }}</td><td>{{ event['description'] or '-' }}</td>
+        {% if g.user['role'] == 'admin' %}<td><div class="actions"><a class="button light" href="{{ url_for('school_event_edit', event_id=event['id']) }}">Edit</a><form method="post" action="{{ url_for('school_event_delete', event_id=event['id']) }}" onsubmit="return confirm('Delete this event?');"><button class="danger">Delete</button></form></div></td>{% endif %}</tr>
+        {% else %}<tr><td colspan="5">No events have been added.</td></tr>{% endfor %}
+        </tbody></table></div>
+        {% if g.user['role'] != 'admin' %}<p class="muted">Staff access is view-only. Contact an administrator to change calendar events.</p>{% endif %}
+      </div>
+    """, "School Calendar", "school_calendar", year=year, month=month,
+       month_name=calendar.month_name[month], weeks=calendar_cells,
+       previous_year=previous_year, previous_month=previous_month,
+       next_year=next_year, next_month=next_month, all_events=all_events)
+
+
+@app.route("/school-calendar/events/new", methods=("GET", "POST"))
+@admin_required
+def school_event_new():
+    if request.method == "POST":
+        title = request.form.get("title", "").strip()
+        event_date = request.form.get("event_date", "").strip()
+        end_date = request.form.get("end_date", "").strip() or event_date
+        event_type = request.form.get("event_type", "General").strip() or "General"
+        description = request.form.get("description", "").strip()
+        try:
+            start_value = date.fromisoformat(event_date)
+            end_value = date.fromisoformat(end_date)
+            valid_dates = end_value >= start_value
+        except ValueError:
+            valid_dates = False
+        if not title or not valid_dates:
+            flash("Enter an event title and a valid date range.", "error")
+        else:
+            db = get_db()
+            db.execute("INSERT INTO school_events (title,event_date,end_date,event_type,description) VALUES (?,?,?,?,?)",
+                       (title, event_date, end_date, event_type, description))
+            db.commit()
+            flash("School event added successfully.")
+            return redirect(url_for("school_calendar", year=start_value.year, month=start_value.month))
+    return page(SCHOOL_EVENT_FORM, "Add School Event", "school_calendar", event=None, form_title="Add event")
+
+
+@app.route("/school-calendar/events/<int:event_id>/edit", methods=("GET", "POST"))
+@admin_required
+def school_event_edit(event_id):
+    db = get_db()
+    event = db.execute("SELECT * FROM school_events WHERE id=?", (event_id,)).fetchone()
+    if event is None:
+        flash("Event not found.", "error")
+        return redirect(url_for("school_calendar"))
+    if request.method == "POST":
+        title = request.form.get("title", "").strip()
+        event_date = request.form.get("event_date", "").strip()
+        end_date = request.form.get("end_date", "").strip() or event_date
+        event_type = request.form.get("event_type", "General").strip() or "General"
+        description = request.form.get("description", "").strip()
+        try:
+            start_value = date.fromisoformat(event_date)
+            end_value = date.fromisoformat(end_date)
+            valid_dates = end_value >= start_value
+        except ValueError:
+            valid_dates = False
+        if not title or not valid_dates:
+            flash("Enter an event title and a valid date range.", "error")
+        else:
+            db.execute("UPDATE school_events SET title=?, event_date=?, end_date=?, event_type=?, description=? WHERE id=?",
+                       (title, event_date, end_date, event_type, description, event_id))
+            db.commit()
+            flash("School event updated successfully.")
+            return redirect(url_for("school_calendar", year=start_value.year, month=start_value.month))
+        event = {"id": event_id, "title": title, "event_date": event_date, "end_date": end_date,
+                 "event_type": event_type, "description": description}
+    return page(SCHOOL_EVENT_FORM, "Edit School Event", "school_calendar", event=event, form_title="Edit event")
+
+
+@app.post("/school-calendar/events/<int:event_id>/delete")
+@admin_required
+def school_event_delete(event_id):
+    db = get_db()
+    db.execute("DELETE FROM school_events WHERE id=?", (event_id,))
+    db.commit()
+    flash("School event deleted.")
+    return redirect(url_for("school_calendar"))
+
+
+SCHOOL_EVENT_FORM = """
+  <div class="topbar"><div><h1>{{ form_title }}</h1><p class="muted">Add or update a school calendar event.</p></div><a class="button light" href="{{ url_for('school_calendar') }}">Back to calendar</a></div>
+  <div class="card"><form method="post" class="event-form">
+    <div class="field full"><label>Event title *</label><input name="title" maxlength="180" value="{{ event['title'] if event else '' }}" required></div>
+    <div class="field"><label>Start date *</label><input type="date" name="event_date" value="{{ event['event_date'] if event else '' }}" required></div>
+    <div class="field"><label>End date (optional for one-day events)</label><input type="date" name="end_date" value="{{ event['end_date'] if event and event['end_date'] else '' }}"></div>
+    <div class="field"><label>Event type</label><select name="event_type">{% for kind in ['General','Term Opening','Assembly','Academic','Revision','Sports','School Closing','Holiday','Meeting'] %}<option value="{{ kind }}" {{ 'selected' if event and event['event_type']==kind else '' }}>{{ kind }}</option>{% endfor %}</select></div>
+    <div class="field full"><label>Description / Bayani</label><textarea name="description">{{ event['description'] if event else '' }}</textarea></div>
+    <div class="field full"><button type="submit">Save event</button></div>
+  </form></div>
+"""
 
 
 if __name__ == "__main__":

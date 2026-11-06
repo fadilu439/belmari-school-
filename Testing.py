@@ -1496,18 +1496,17 @@ def school_event_delete(event_id):
     return redirect(url_for("school_calendar"))
 
 
-SCHOOL_EVENT_FORM = """
-  <div class="topbar"><div><h1>{{ form_title }}</h1><p class="muted">Add or update a school calendar event.</p></div><a class="button light" href="{{ url_for('school_calendar') }}">Back to calendar</a></div>
-  <div class="card"><form method="post" class="event-form">
-    <div class="field full"><label>Event title *</label><input name="title" maxlength="180" value="{{ event['title'] if event else '' }}" required></div>
-    <div class="field"><label>Start date *</label><input type="date" name="event_date" value="{{ event['event_date'] if event else '' }}" required></div>
-    <div class="field"><label>End date (optional for one-day events)</label><input type="date" name="end_date" value="{{ event['end_date'] if event and event['end_date'] else '' }}"></div>
-    <div class="field"><label>Event type</label><select name="event_type">{% for kind in ['General','Term Opening','Assembly','Academic','Revision','Sports','School Closing','Holiday','Meeting'] %}<option value="{{ kind }}" {{ 'selected' if event and event['event_type']==kind else '' }}>{{ kind }}</option>{% endfor %}</select></div>
-    <div class="field full"><label>Description / Bayani</label><textarea name="description">{{ event['description'] if event else '' }}</textarea></div>
-    <div class="field full"><button type="submit">Save event</button></div>
-  </form></div>
+SCHOOSCHOOL_EVENT_FORM = """
+<div class="topbar"><div><h1>{{ form_title }}</h1><p class="muted">Add or update a school event</p></div></div>
+<div class="card"><form method="post" class="event-form">
+<div class="field"><label>Title</label><input type="text" name="title" maxlength="120" value="{{ event_title }}" required></div>
+<div class="field"><label>Start date</label><input type="date" name="start_date" value="{{ start_date }}" required></div>
+<div class="field"><label>End date (optional for one-day event)</label><input type="date" name="end_date" value="{{ end_date }}"></div>
+<div class="field"><label>Event type</label><select name="event_type">{% for kind in ["General", "Holiday", "Exam", "Activity"] %}<option value="{{ kind }}" {% if kind == event_type %}selected{% endif %}>{{ kind }}</option>{% endfor %}</select></div>
+<div class="field"><label>Description</label><textarea name="description">{{ description }}</textarea></div>
+<div class="field full"><button type="submit">Save event</button></div>
+</form></div>
 """
-
 
 if __name__ == "__main__":
     app.run(debug=True)

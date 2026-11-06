@@ -1393,7 +1393,7 @@ def school_calendar():
       {% if g.user['role'] == 'admin' %}<a class="button" href="{{ url_for('school_event_new') }}">+ Add event</a>{% endif %}</div>
       <div class="card">
         <div class="calendar-toolbar">
-          <a class="button light" href="{{ url_for('school_calendar', year=previous_year, month=previous_month) }}">← Previous Month</a>
+<a class="button light" href="{{ url_for('school_calendar', year=previous_year, month=previous_month) }}"><< Previous Month</a>
           <h2 style="margin:0;">{{ month_name }} {{ year }}</h2>
           <a class="button light" href="{{ url_for('school_calendar', year=next_year, month=next_month) }}">Next Month →</a>
         </div>

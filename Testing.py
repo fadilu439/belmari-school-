@@ -1385,7 +1385,7 @@ def workplace_chat():
         <div><h1>Workplace Chat</h1><p class="muted">Private staff communication and school discussion channels.</p></div>
       </div>
       <div class="chat-layout">
-        <aside class="chat-sidebar">
+        <div class="chat-sidebar">
           <section class="card">
             <h3>Channels</h3>
             <div class="chat-list">
@@ -1421,7 +1421,7 @@ def workplace_chat():
               {% else %}<p class="muted">No other staff accounts are available.</p>{% endfor %}
             </div>
           </section>
-        </aside>
+        </div>
         <section class="card">
           <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px;">
             <div><h2 id="conversation-title">{{ conversation_title }}</h2>
@@ -1433,7 +1433,8 @@ def workplace_chat():
                data-mode="{{ mode }}"
                data-channel-id="{{ selected_channel['id'] if selected_channel else '' }}"
                data-receiver-id="{{ selected_user['id'] if selected_user else '' }}"
-               data-updates-url="{{ url_for('workplace_chat_updates') }}">
+               data-updates-url="{{ url_for('workplace_chat_updates') }}"
+               data-last-message-id="{{ messages[-1]['id'] if messages else '' }}">
             {% for item in messages %}
               <div class="chat-message {{ 'mine' if item['sender_id'] == g.user['id'] else '' }}">
                 <div class="chat-meta"><strong>{{ item['sender_name'] }}</strong><span>{{ item['created_at'] }}</span></div>
@@ -1461,7 +1462,7 @@ def workplace_chat():
         const status = document.getElementById('chat-status');
         const nearBottom = () => box.scrollHeight - box.scrollTop - box.clientHeight < 100;
         box.scrollTop = box.scrollHeight;
-        let lastCount = box.querySelectorAll('.chat-message').length;
+        let lastMessageId = box.dataset.lastMessageId || '';
         async function refreshMessages() {
           const wasNearBottom = nearBottom();
           const params = new URLSearchParams({mode: box.dataset.mode});
@@ -1473,7 +1474,8 @@ def workplace_chat():
             });
             if (!response.ok) throw new Error('Refresh failed');
             const data = await response.json();
-            if (data.messages.length !== lastCount) {
+            const newestId = data.messages.length ? String(data.messages[data.messages.length - 1].id) : '';
+            if (newestId !== lastMessageId) {
               box.replaceChildren();
               if (!data.messages.length) {
                 const empty = document.createElement('p');
@@ -1498,7 +1500,7 @@ def workplace_chat():
                 article.append(meta, body);
                 box.appendChild(article);
               });
-              lastCount = data.messages.length;
+              lastMessageId = newestId;
               if (wasNearBottom) box.scrollTop = box.scrollHeight;
             }
             status.textContent = 'Connected';
@@ -1556,6 +1558,7 @@ def workplace_chat_updates():
     rows = list(reversed(rows))
     return jsonify({
         "messages": [{
+            "id": row["id"],
             "sender_id": row["sender_id"],
             "sender_name": row["sender_name"],
             "created_at": str(row["created_at"]),

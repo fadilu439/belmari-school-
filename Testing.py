@@ -5,7 +5,7 @@ import calendar
 from datetime import date, datetime, timedelta
 from functools import wraps
 
-from flask import Flask, flash, g, redirect, render_template_string, request, session, url_for
+from flask import Flask, flash, g, jsonify, redirect, render_template_string, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
 app = Flask(__name__)
@@ -293,6 +293,24 @@ def init_db():
             created_by INTEGER,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )""")
+    # Seed the initial staff discussion channels without duplicating existing channels.
+    default_chat_channels = (
+        ("General", "General announcements and staff discussion"),
+        ("Teachers", "Teaching, classes and academic coordination"),
+        ("Examination Office", "Examination planning and coordination"),
+        ("Administration", "Administrative coordination for the school"),
+    )
+    for channel_name, channel_description in default_chat_channels:
+        channel_exists = db.execute(
+            "SELECT id FROM chat_channels WHERE name=?",
+            (channel_name,),
+        ).fetchone()
+        if channel_exists is None:
+            db.execute(
+                "INSERT INTO chat_channels (name, description) VALUES (?, ?)",
+                (channel_name, channel_description),
+            )
+
     for event in default_school_events:
         exists = db.execute(
             "SELECT id FROM school_events WHERE title=? AND event_date=? AND end_date=?",
@@ -549,6 +567,17 @@ def admin_required(view):
             return redirect(url_for("login"))
         if g.user["role"]!= "admin":
             flash("This section is for the main administrator only.", "error")
+            return redirect(url_for("dashboard"))
+        return view(*args, **kwargs)
+    return wrapped_view
+
+def chat_access_required(view):
+    @wraps(view)
+    def wrapped_view(*args, **kwargs):
+        if g.user is None:
+            return redirect(url_for("login"))
+        if g.user["role"] not in ("admin", "staff"):
+            flash("Workplace Chat is available to administrators and staff only.", "error")
             return redirect(url_for("dashboard"))
         return view(*args, **kwargs)
     return wrapped_view
@@ -816,6 +845,17 @@ BASE_HTML = """
     .chat-message { padding:13px 16px; border:1px solid var(--border); border-radius:14px; background:#f8fbff; }
     .chat-message.mine { background:var(--primary-soft); border-color:#b8d1fa; }
     .chat-meta { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; font-size:12px; color:var(--muted); margin-bottom:5px; }
+    .chat-layout { display:grid; grid-template-columns:230px minmax(0,1fr); gap:16px; align-items:start; }
+    .chat-sidebar { display:grid; gap:14px; }
+    .chat-list { display:grid; gap:6px; }
+    .chat-link { display:block; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:#fff; font-weight:700; }
+    .chat-link small { display:block; color:var(--muted); font-weight:400; margin-top:3px; }
+    .chat-link.active { background:var(--primary-soft); border-color:#9dbcf0; color:var(--primary-dark); }
+    .chat-compose { display:flex; gap:10px; align-items:flex-end; margin-top:16px; }
+    .chat-compose textarea { flex:1; min-height:48px; max-height:130px; }
+    .chat-compose button { white-space:nowrap; }
+    .chat-empty { padding:24px; text-align:center; color:var(--muted); }
+    @media(max-width:700px) { .chat-layout { grid-template-columns:1fr; } .chat-sidebar { grid-template-columns:1fr; } .chat-compose { align-items:stretch; flex-direction:column; } .chat-compose button { width:100%; } }
     .task-status { display:inline-block; padding:5px 10px; border-radius:20px; background:var(--primary-soft); color:var(--primary-dark); font-size:12px; font-weight:700; }
     .task-status.done { background:#e6f7ed; color:#17663a; }
     .task-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
@@ -834,7 +874,7 @@ BASE_HTML = """
     <a href="{{ url_for('school_calendar') }}" class="{{ 'active' if page == 'school_calendar' else '' }}">School Calendar</a>
     {% if g.user['role'] == 'admin' %}<a href="{{ url_for('users') }}" class="{{ 'active' if page == 'users' else '' }}">Staff &amp; Admin</a>{% endif %}
     <a href="{{ url_for('offices') }}" class="{{ 'active' if page == 'offices' else '' }}">Offices</a>
-    <a href="{{ url_for('workplace_chat') }}" class="{{ 'active' if page == 'workplace_chat' else '' }}">Workplace Chat</a>
+    {% if g.user['role'] in ('admin', 'staff') %}<a href="{{ url_for('workplace_chat') }}" class="{{ 'active' if page == 'workplace_chat' else '' }}">Workplace Chat</a>{% endif %}
     <a href="{{ url_for('tasks') }}" class="{{ 'active' if page == 'tasks' else '' }}">Tasks</a>
     <a href="{{ url_for('logout') }}">Log out</a>
 </nav></aside><main>
@@ -1209,44 +1249,320 @@ def offices():
 
 
 @app.route("/workplace-chat", methods=("GET", "POST"))
-@login_required
+@chat_access_required
 def workplace_chat():
     db = get_db()
-    if request.method == "POST":
-        message = request.form.get("message", "").strip()
-        if message:
-            db.execute("INSERT INTO workplace_messages (sender_id, message) VALUES (?, ?)",
-                       (g.user["id"], message[:2000]))
-            db.commit()
-        else:
-            flash("Write a message before sending.", "error")
-        return redirect(url_for("workplace_chat"))
-
-    messages = db.execute(
-        """SELECT workplace_messages.*, users.full_name AS sender_name
-           FROM workplace_messages JOIN users ON users.id=workplace_messages.sender_id
-           ORDER BY workplace_messages.id DESC LIMIT 100"""
+    channels = db.execute(
+        "SELECT * FROM chat_channels ORDER BY name"
     ).fetchall()
+    colleagues = db.execute(
+        """SELECT id, full_name, role FROM users
+           WHERE role IN ('admin', 'staff') AND id != ?
+           ORDER BY full_name""",
+        (g.user["id"],),
+    ).fetchall()
+
+    def safe_int(value):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    if request.method == "POST":
+        action = request.form.get("action", "send_message")
+        if action == "create_channel":
+            if g.user["role"] != "admin":
+                flash("Only administrators can create chat channels.", "error")
+                return redirect(url_for("workplace_chat"))
+            channel_name = request.form.get("channel_name", "").strip()[:80]
+            channel_description = request.form.get("channel_description", "").strip()[:240]
+            if not channel_name:
+                flash("Enter a name for the channel.", "error")
+            elif db.execute(
+                "SELECT id FROM chat_channels WHERE lower(name)=lower(?)",
+                (channel_name,),
+            ).fetchone():
+                flash("A channel with that name already exists.", "error")
+            else:
+                db.execute(
+                    "INSERT INTO chat_channels (name, description) VALUES (?, ?)",
+                    (channel_name, channel_description),
+                )
+                db.commit()
+                flash("Chat channel created.")
+            return redirect(url_for("workplace_chat"))
+
+        message = request.form.get("message", "").strip()
+        receiver_id = safe_int(request.form.get("receiver_id"))
+        channel_id = safe_int(request.form.get("channel_id"))
+        if not message:
+            flash("Write a message before sending.", "error")
+        elif receiver_id is not None:
+            recipient = db.execute(
+                "SELECT id FROM users WHERE id=? AND role IN ('admin', 'staff')",
+                (receiver_id,),
+            ).fetchone()
+            if recipient is None or receiver_id == g.user["id"]:
+                flash("That staff member is not available for private messaging.", "error")
+            else:
+                db.execute(
+                    """INSERT INTO chat_messages
+                       (channel_id, sender_id, receiver_id, message)
+                       VALUES (NULL, ?, ?, ?)""",
+                    (g.user["id"], receiver_id, message[:2000]),
+                )
+                db.commit()
+                return redirect(url_for("workplace_chat", dm=receiver_id))
+        else:
+            valid_channel = db.execute(
+                "SELECT id FROM chat_channels WHERE id=?",
+                (channel_id,),
+            ).fetchone()
+            if valid_channel is None:
+                flash("Please choose a valid chat channel.", "error")
+            else:
+                db.execute(
+                    """INSERT INTO chat_messages
+                       (channel_id, sender_id, receiver_id, message)
+                       VALUES (?, ?, NULL, ?)""",
+                    (channel_id, g.user["id"], message[:2000]),
+                )
+                db.commit()
+                return redirect(url_for("workplace_chat", channel=channel_id))
+
+    dm_id = safe_int(request.args.get("dm"))
+    selected_user = None
+    selected_channel = None
+    if dm_id is not None:
+        selected_user = db.execute(
+            "SELECT id, full_name, role FROM users WHERE id=? AND role IN ('admin', 'staff')",
+            (dm_id,),
+        ).fetchone()
+        if selected_user is None or dm_id == g.user["id"]:
+            flash("The selected private conversation is unavailable.", "error")
+            return redirect(url_for("workplace_chat"))
+    else:
+        channel_id = safe_int(request.args.get("channel"))
+        if channel_id is not None:
+            selected_channel = db.execute(
+                "SELECT * FROM chat_channels WHERE id=?",
+                (channel_id,),
+            ).fetchone()
+        if selected_channel is None and channels:
+            selected_channel = channels[0]
+
+    if selected_user:
+        messages = db.execute(
+            """SELECT m.*, u.full_name AS sender_name
+               FROM chat_messages m JOIN users u ON u.id=m.sender_id
+               WHERE (m.sender_id=? AND m.receiver_id=?)
+                  OR (m.sender_id=? AND m.receiver_id=?)
+               ORDER BY m.id DESC LIMIT 100""",
+            (g.user["id"], selected_user["id"], selected_user["id"], g.user["id"]),
+        ).fetchall()
+        conversation_title = selected_user["full_name"]
+        mode = "dm"
+    elif selected_channel:
+        messages = db.execute(
+            """SELECT m.*, u.full_name AS sender_name
+               FROM chat_messages m JOIN users u ON u.id=m.sender_id
+               WHERE m.channel_id=?
+                  OR (m.channel_id IS NULL AND m.receiver_id IS NULL AND ?=(
+                      SELECT MIN(id) FROM chat_channels))
+               ORDER BY m.id DESC LIMIT 100""",
+            (selected_channel["id"], selected_channel["id"]),
+        ).fetchall()
+        conversation_title = "#" + selected_channel["name"]
+        mode = "channel"
+    else:
+        messages = []
+        conversation_title = "Workplace Chat"
+        mode = "channel"
     messages = list(reversed(messages))
+
     return page("""
-      <div class="topbar"><div><h1>Workplace Chat</h1><p class="muted">Share work-related messages with signed-in school staff.</p></div></div>
-      <div class="card">
-        <div class="chat-window" id="chat-window">
-        {% for item in messages %}
-          <div class="chat-message {{ 'mine' if item['sender_id'] == g.user['id'] else '' }}">
-            <div class="chat-meta"><strong>{{ item['sender_name'] }}</strong><span>{{ item['created_at'] }}</span></div>
-            <div style="white-space:pre-wrap; overflow-wrap:anywhere;">{{ item['message'] }}</div>
-          </div>
-        {% else %}<p class="muted">No messages yet. Start the school conversation.</p>{% endfor %}
-        </div>
-        <form method="post" style="margin-top:18px;">
-          <label for="message"><strong>Your message</strong></label>
-          <textarea id="message" name="message" maxlength="2000" placeholder="Write a message to your colleagues..." required></textarea><br>
-          <button type="submit">Send message</button>
-        </form>
+      <div class="topbar">
+        <div><h1>Workplace Chat</h1><p class="muted">Private staff communication and school discussion channels.</p></div>
       </div>
-      <script>const chatWindow=document.getElementById('chat-window'); if(chatWindow){chatWindow.scrollTop=chatWindow.scrollHeight;}</script>
-    """, "Workplace Chat", "workplace_chat", messages=messages)
+      <div class="chat-layout">
+        <aside class="chat-sidebar">
+          <section class="card">
+            <h3>Channels</h3>
+            <div class="chat-list">
+              {% for channel in channels %}
+                <a class="chat-link {{ 'active' if selected_channel and selected_channel['id'] == channel['id'] else '' }}"
+                   href="{{ url_for('workplace_chat', channel=channel['id']) }}">
+                  # {{ channel['name'] }}
+                  {% if channel['description'] %}<small>{{ channel['description'] }}</small>{% endif %}
+                </a>
+              {% else %}<p class="muted">No channels yet.</p>{% endfor %}
+            </div>
+            {% if g.user['role'] == 'admin' %}
+              <details style="margin-top:14px;">
+                <summary style="cursor:pointer;font-weight:700;">+ Create channel</summary>
+                <form method="post" style="margin-top:12px;">
+                  <input type="hidden" name="action" value="create_channel">
+                  <label>Channel name</label><input name="channel_name" maxlength="80" required placeholder="e.g. Staff Welfare">
+                  <label style="margin-top:10px;">Description</label><input name="channel_description" maxlength="240" placeholder="What is this channel for?">
+                  <button type="submit" style="margin-top:12px;">Create channel</button>
+                </form>
+              </details>
+            {% endif %}
+          </section>
+          <section class="card">
+            <h3>Private messages</h3>
+            <div class="chat-list">
+              {% for person in colleagues %}
+                <a class="chat-link {{ 'active' if selected_user and selected_user['id'] == person['id'] else '' }}"
+                   href="{{ url_for('workplace_chat', dm=person['id']) }}">
+                  {{ person['full_name'] }}
+                  <small>{{ person['role']|title }}</small>
+                </a>
+              {% else %}<p class="muted">No other staff accounts are available.</p>{% endfor %}
+            </div>
+          </section>
+        </aside>
+        <section class="card">
+          <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px;">
+            <div><h2 id="conversation-title">{{ conversation_title }}</h2>
+              <p class="muted" style="margin:3px 0 0;">{% if mode == 'dm' %}Private conversation{% else %}Messages visible to Admin and Staff{% endif %}</p>
+            </div>
+            <span class="task-status" id="chat-status">Connected</span>
+          </div>
+          <div class="chat-window" id="chat-window"
+               data-mode="{{ mode }}"
+               data-channel-id="{{ selected_channel['id'] if selected_channel else '' }}"
+               data-receiver-id="{{ selected_user['id'] if selected_user else '' }}"
+               data-updates-url="{{ url_for('workplace_chat_updates') }}">
+            {% for item in messages %}
+              <div class="chat-message {{ 'mine' if item['sender_id'] == g.user['id'] else '' }}">
+                <div class="chat-meta"><strong>{{ item['sender_name'] }}</strong><span>{{ item['created_at'] }}</span></div>
+                <div style="white-space:pre-wrap;overflow-wrap:anywhere;">{{ item['message'] }}</div>
+              </div>
+            {% else %}<p class="chat-empty">No messages here yet. Start the conversation.</p>{% endfor %}
+          </div>
+          {% if selected_user or selected_channel %}
+            <form method="post" class="chat-compose">
+              {% if selected_user %}
+                <input type="hidden" name="receiver_id" value="{{ selected_user['id'] }}">
+              {% else %}
+                <input type="hidden" name="channel_id" value="{{ selected_channel['id'] }}">
+              {% endif %}
+              <textarea name="message" maxlength="2000" rows="2" placeholder="Write your message..." required></textarea>
+              <button type="submit">Send message</button>
+            </form>
+          {% else %}<p class="chat-empty">Create or select a channel to begin.</p>{% endif %}
+        </section>
+      </div>
+      <script>
+      (() => {
+        const box = document.getElementById('chat-window');
+        if (!box) return;
+        const status = document.getElementById('chat-status');
+        const nearBottom = () => box.scrollHeight - box.scrollTop - box.clientHeight < 100;
+        box.scrollTop = box.scrollHeight;
+        let lastCount = box.querySelectorAll('.chat-message').length;
+        async function refreshMessages() {
+          const wasNearBottom = nearBottom();
+          const params = new URLSearchParams({mode: box.dataset.mode});
+          if (box.dataset.mode === 'dm') params.set('receiver_id', box.dataset.receiverId);
+          else params.set('channel_id', box.dataset.channelId);
+          try {
+            const response = await fetch(box.dataset.updatesUrl + '?' + params.toString(), {
+              headers: {'X-Requested-With': 'fetch'}
+            });
+            if (!response.ok) throw new Error('Refresh failed');
+            const data = await response.json();
+            if (data.messages.length !== lastCount) {
+              box.replaceChildren();
+              if (!data.messages.length) {
+                const empty = document.createElement('p');
+                empty.className = 'chat-empty';
+                empty.textContent = 'No messages here yet. Start the conversation.';
+                box.appendChild(empty);
+              }
+              data.messages.forEach(item => {
+                const article = document.createElement('div');
+                article.className = 'chat-message' + (item.mine ? ' mine' : '');
+                const meta = document.createElement('div');
+                meta.className = 'chat-meta';
+                const sender = document.createElement('strong');
+                sender.textContent = item.sender_name;
+                const time = document.createElement('span');
+                time.textContent = item.created_at;
+                meta.append(sender, time);
+                const body = document.createElement('div');
+                body.style.whiteSpace = 'pre-wrap';
+                body.style.overflowWrap = 'anywhere';
+                body.textContent = item.message;
+                article.append(meta, body);
+                box.appendChild(article);
+              });
+              lastCount = data.messages.length;
+              if (wasNearBottom) box.scrollTop = box.scrollHeight;
+            }
+            status.textContent = 'Connected';
+          } catch (_error) {
+            status.textContent = 'Reconnecting...';
+          }
+        }
+        window.setInterval(refreshMessages, 8000);
+      })();
+      </script>
+    """, "Workplace Chat", "workplace_chat",
+       channels=channels, colleagues=colleagues, selected_channel=selected_channel,
+       selected_user=selected_user, messages=messages,
+       conversation_title=conversation_title, mode=mode)
+
+
+@app.route("/workplace-chat/updates")
+@chat_access_required
+def workplace_chat_updates():
+    db = get_db()
+    mode = request.args.get("mode", "channel")
+    if mode == "dm":
+        receiver_id = request.args.get("receiver_id", type=int)
+        recipient = db.execute(
+            "SELECT id FROM users WHERE id=? AND role IN ('admin', 'staff')",
+            (receiver_id,),
+        ).fetchone() if receiver_id else None
+        if recipient is None or receiver_id == g.user["id"]:
+            return jsonify({"error": "Conversation unavailable."}), 403
+        rows = db.execute(
+            """SELECT m.*, u.full_name AS sender_name
+               FROM chat_messages m JOIN users u ON u.id=m.sender_id
+               WHERE (m.sender_id=? AND m.receiver_id=?)
+                  OR (m.sender_id=? AND m.receiver_id=?)
+               ORDER BY m.id DESC LIMIT 100""",
+            (g.user["id"], receiver_id, receiver_id, g.user["id"]),
+        ).fetchall()
+    else:
+        channel_id = request.args.get("channel_id", type=int)
+        channel = db.execute(
+            "SELECT id FROM chat_channels WHERE id=?",
+            (channel_id,),
+        ).fetchone() if channel_id else None
+        if channel is None:
+            return jsonify({"error": "Channel unavailable."}), 404
+        rows = db.execute(
+            """SELECT m.*, u.full_name AS sender_name
+               FROM chat_messages m JOIN users u ON u.id=m.sender_id
+               WHERE m.channel_id=?
+                  OR (m.channel_id IS NULL AND m.receiver_id IS NULL AND ?=(
+                      SELECT MIN(id) FROM chat_channels))
+               ORDER BY m.id DESC LIMIT 100""",
+            (channel_id, channel_id),
+        ).fetchall()
+    rows = list(reversed(rows))
+    return jsonify({
+        "messages": [{
+            "sender_id": row["sender_id"],
+            "sender_name": row["sender_name"],
+            "created_at": str(row["created_at"]),
+            "message": row["message"],
+            "mine": row["sender_id"] == g.user["id"],
+        } for row in rows]
+    })
 
 
 @app.route("/tasks", methods=("GET", "POST"))

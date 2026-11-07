@@ -311,6 +311,46 @@ def init_db():
                 (channel_name, channel_description),
             )
 
+    # Track legacy workplace messages so they can be moved into General exactly once.
+    db.execute("""CREATE TABLE IF NOT EXISTS workplace_chat_migrations (
+        legacy_message_id INTEGER PRIMARY KEY,
+        chat_message_id INTEGER NOT NULL
+    )""")
+    general_channel = db.execute(
+        "SELECT id FROM chat_channels WHERE name=?",
+        ("General",),
+    ).fetchone()
+    legacy_messages = db.execute(
+        """SELECT wm.* FROM workplace_messages wm
+           LEFT JOIN workplace_chat_migrations migration
+             ON migration.legacy_message_id=wm.id
+           WHERE migration.legacy_message_id IS NULL
+           ORDER BY wm.id"""
+    ).fetchall()
+    if general_channel is not None:
+        for legacy in legacy_messages:
+            legacy_created_at = str(legacy["created_at"])
+            db.execute(
+                """INSERT INTO chat_messages
+                   (channel_id, sender_id, receiver_id, message, created_at)
+                   VALUES (?, ?, NULL, ?, ?)""",
+                (general_channel["id"], legacy["sender_id"],
+                 legacy["message"], legacy_created_at),
+            )
+            migrated = db.execute(
+                """SELECT id FROM chat_messages
+                   WHERE channel_id=? AND sender_id=? AND message=? AND created_at=?
+                   ORDER BY id DESC LIMIT 1""",
+                (general_channel["id"], legacy["sender_id"],
+                 legacy["message"], legacy_created_at),
+            ).fetchone()
+            if migrated is not None:
+                db.execute(
+                    """INSERT INTO workplace_chat_migrations
+                       (legacy_message_id, chat_message_id) VALUES (?, ?)""",
+                    (legacy["id"], migrated["id"]),
+                )
+
     for event in default_school_events:
         exists = db.execute(
             "SELECT id FROM school_events WHERE title=? AND event_date=? AND end_date=?",
